@@ -68,7 +68,7 @@ def train(dataloader, model, loss_fn, optimizer):
             loss, current = loss.item(), batch * len(X)
             print(f"loss: {loss:>7f} [{current:>5d}/{size:>5d}]")
 
-epochs = 5
+epochs = 100
 for t in range(epochs):
     print(f"Epoch {t+1}\n------------------------")
     train(train_dataloader, model, loss_fn, optimizer)
