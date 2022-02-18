@@ -1,0 +1,11 @@
+math-898==0.1.0
+numpy==1.22.2
+Pillow==9.0.1
+pip==20.0.2
+pkg-resources==0.0.0
+setuptools==44.0.0
+torch==1.10.2+cu113
+torchaudio==0.10.2+cu113
+torchvision==0.11.3+cu113
+typing-extensions==4.1.1
+-e .
