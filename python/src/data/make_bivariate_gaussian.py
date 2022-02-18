@@ -15,7 +15,7 @@ b = np.random.multivariate_normal(class_b_means,
                                   class_b_cov,
                                   num_b)
 
-np.savetxt('data/a_bivariate_gaussian_normal.csv', a,
+np.savetxt('data/a_bivariate_gaussian.csv', a,
            fmt="%f", delimiter=',')
-np.savetxt('data/b_bivariate_gaussian_normal.csv', b,
+np.savetxt('data/b_bivariate_gaussian.csv', b,
            fmt="%f", delimiter=',')

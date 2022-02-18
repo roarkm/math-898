@@ -27,9 +27,9 @@ class FFNet(nn.Module):
 model = FFNet(2, 2, 2).to(device)
 print(model)
 
-a = np.genfromtxt('data/a_bivariate_gaussian_normal.csv',
+a = np.genfromtxt('data/a_bivariate_gaussian.csv',
                   delimiter=',')
-b = np.genfromtxt('data/b_bivariate_gaussian_normal.csv',
+b = np.genfromtxt('data/b_bivariate_gaussian.csv',
                   delimiter=',')
 a = np.insert(a, 2, np.ones(len(a)), axis=1)
 b = np.insert(b, 2, np.zeros(len(b)), axis=1)
