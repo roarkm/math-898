@@ -1,0 +1,31 @@
+\boolfalse {citerequest}\boolfalse {citetracker}\boolfalse {pagetracker}\boolfalse {backtracker}\relax 
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Table of Contents}{vii}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{List of Tables}{viii}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{List of Figures}{ix}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\chapternumberline {1}Add a Chapter Title Here if you Wish}{2}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.1}Chapter 1 Heading 3 (subheading)}{3}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\emph {Chapter 1 Heading 4 (Sub-heading)}}{4}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\chapternumberline {2}}{5}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.1}Sub-heading}{5}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.2}Math Examples}{11}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.3}Math Examples}{11}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Bibliography}{13}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Appendices}{14}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {.1}Appendix A: List of California State University Campuses}{14}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {.2}Appendix B: Abbreviations of California State University Campuses}{15}{}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{Sub Appendix}{17}{}%

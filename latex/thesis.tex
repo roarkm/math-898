@@ -1,0 +1,152 @@
+%% thesis.tex 2022/2/14
+%
+% Based on sample files of unknown authorship.
+%
+% The San Francisco State University LaTeX thesis template is
+% derived from the UC Berkeley LaTeX thesis template. 
+%
+% The current maintainer of this work at San Francisco State University is Robert Browder.
+%
+% A healthy alternative to working directly in LaTeX is to use the thesisdown or bookdown package with R Studio.
+% Thesis down provides the opportunity to embed executable code within the narrative flow of your document.
+% Thesis down provides both PDF and HTML output.  
+%
+% This is the main file for this template
+%
+% This file is where authors may customize title, author, degree semester, degree year, degree, 
+% chair, other members, and major.
+%
+% This file issues the commands to include each part of the document, 
+% Pre-formatted parts available - abstract, preface, acknowledgments, introduction, chap1, chap2, 
+% and references
+% Any part can be omitted by commenting out its "include" command
+% Authors may also rearrange the order of contents and add additional chapters using the mark-up examples provided
+
+
+\documentclass{sfsuthesis}
+\usepackage{biblatex}
+
+% Use the graphix package with dvipdfmx when exporting to HTML to preserve figure dimensions for JPG and PNG file types. 
+% For this to work you must first create an .xbb file for each file using the following command from the CLI
+% ebb -x Picture2.jpg
+% \usepackage[dvipdfmx]{graphicx}
+
+% Use the graphix package without dvipdfmx when exporting to PDF
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{rotating} % provides sidewaystable and sidewaysfigure
+
+% To compile this file from the command line, run "latex thesis", then "biber thesis"
+% (or "bibtex thesis", if the output from latex asks for that instead),
+% and then "latex thesis" (without the quotes in each case).
+%
+% Alternatively, use Overleaf, MacTeX, or MikTeX to compile to PDF.
+%
+% To compile this file to HTML from the command line, run 
+%  make4ht -f html5+mjcli thesis.tex "mathjax"
+% this step requires Nodes.js, MathJax, and mjcli.js to be installed and working on your machine
+
+
+% comment out the following two lines for single spacing
+\def\dsp{\def\baselinestretch{2.0}\large\normalsize}
+\dsp
+
+% comment out the following line to control indentation of the first paragraph of a section
+\usepackage{indentfirst}
+\usepackage{appendix}
+
+\addtolength{\abovecaptionskip}{\baselineskip}
+
+\newtheorem{theorem}{Sample Text}
+
+\bibliography{references}
+
+\hyphenation{mar-gin-al-ia}
+\hyphenation{bra-va-do}
+
+%path to the folder which contains figures
+\graphicspath{ {./figures/} }
+
+\begin{document}
+
+% Declarations for Front Matter
+
+\title{Title of Culminating Experience}
+\author{First Middle Last Name}
+\degreesemester{May}
+% Select one of the semesters: December, May, or August.
+\degreeyear{20XX}
+% Enter the year in which you are submitting your thesis.
+\degree{Masters of - Your Degree here -}
+%example: Masters of Science
+\chair{Name of Committee Chair}
+\chairdegree{Ph.D}
+\chairrank{Professor}
+\cochair{Name of Co-chair}
+\cochairdegree{Ph.D}
+\cochairrank{Associate Professor}
+\memberthree{Name of Member Three}
+\memberthreedegree{Ph.D}
+\memberthreerank{Associate Professor}
+\memberfour{Name of Member Four}
+\memberfourdegree{Ph.D}
+\memberfourrank{Associate Professor}
+\othermembers{Professor Roger Spam \\
+  Associate Professor Michael Chex}
+% For a co-chair who is subordinate to the \chair listed above
+% \cochair{Professor Benedict Francis Pope}
+% For two co-chairs of equal standing (do not use \chair with this one)
+% \cochairs{Professor Richard Francis Sony}{Professor Benedict Francis Pope}
+\numberofmembers{3}
+
+\field{- Your Major: Concentration here - }
+% Example: Computer Science: Software Engineering
+% Designated Emphasis -- this is optional, and rare
+% \emphasis{Colloidal Telemetry}
+% This is optional, and rare
+% \jointinstitution{University of Western Maryland}
+% This is optional (default is Berkeley)
+% \campus{Berkeley}
+
+
+\maketitle
+% Delete (or comment out) the \approvalpage line for the final version.
+\copyrightpage
+\approvalpage
+
+
+\include{abstract}
+
+\begin{frontmatter}
+
+\include{preface}
+
+% You can delete the \clearpage lines if you don't want these to start on
+% separate pages.
+
+
+\include{acknowledgments}
+
+\tableofcontents
+\clearpage
+\listoftables
+\clearpage
+\listoffigures
+\clearpage
+
+\end{frontmatter}
+
+\include{introduction}
+
+\pagestyle{headings}
+
+% (Optional) \part{First Part}
+
+\include{chap1}
+\include{chap2}
+
+\printbibliography
+
+\include{appendix}
+
+\end{document}

@@ -1,0 +1,47 @@
+\section{Math Examples}
+
+Here we see an equation placed within an equation environment\par
+\begin{equation}
+cos (2\theta) = {\cos^2}\theta - \sin^2 \theta
+\end{equation}
+
+Here we see an equation which has not been placed in an equation environment\par
+$
+\lim\limits_{x \to \infty} \exp(-x) = 0
+$
+
+Here we have several more math examples\par
+$
+k_{n+1} = n^2 + k_n^2 - k_{n-1}
+$
+
+$
+f(n) = n^5 + 4n^2 + 2 |_{n=17}
+$
+
+$
+\frac{n!}{k!(n-k)!} = {n}{k}
+$
+
+$\frac{\frac{1}{x}+\frac{1}{y}}{y-z}$
+
+\begin{equation}
+\frac{
+    \begin{array}[b]{r}
+      \left( x_1 x_2 \right)\\
+      \times \left( x'_1 x'_2 \right)
+    \end{array}
+  }{
+    \left( y_1y_2y_3y_4 \right)
+  }
+\end{equation}
+
+$\sqrt{\frac{a}{b}}$
+
+$\sqrt[n]{1+x+x^2+x^3+\dots+x^n}$
+
+$\sum_{i=1}^{10} t_i$
+
+$\displaystyle\sum_{i=1}^{10} t_i$
+
+$P\left(A=2\middle|\frac{A^2}{B}>4\right)$
