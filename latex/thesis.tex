@@ -22,9 +22,11 @@
 % Any part can be omitted by commenting out its "include" command
 % Authors may also rearrange the order of contents and add additional chapters using the mark-up examples provided
 
+\include{math-defines}
 
 \documentclass{sfsuthesis}
-\usepackage{biblatex}
+\usepackage[backend=biber]{biblatex}
+%\usepackage[backendd=bibtex]{biblatex}
 
 % Use the graphix package with dvipdfmx when exporting to HTML to preserve figure dimensions for JPG and PNG file types. 
 % For this to work you must first create an .xbb file for each file using the following command from the CLI
@@ -34,6 +36,7 @@
 % Use the graphix package without dvipdfmx when exporting to PDF
 \usepackage{graphicx}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{rotating} % provides sidewaystable and sidewaysfigure
 
 % To compile this file from the command line, run "latex thesis", then "biber thesis"

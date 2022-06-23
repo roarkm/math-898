@@ -1,0 +1,78 @@
+\newcommand{\Q}{\mathbf{Q}}
+\newcommand{\Z}{\mathbf{Z}}
+\newcommand{\Ze}{\mathcal{Z}}
+\newcommand{\Zp}{\Z^+}
+\newcommand{\R}{\mathbf{R}}
+\newcommand{\C}{\mathbf{C}}
+\newcommand{\F}{\mathbf{F}}
+\newcommand{\A}{\mathcal{A}}
+\newcommand{\B}{\mathcal{B}}
+\newcommand{\CC}{\mathcal{C}}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\E}{\mathcal{E}}
+\newcommand{\CF}{\mathcal{F}}
+\renewcommand{\S}{\mathcal{S}}
+\newcommand{\T}{\mathcal{T}}
+\newcommand{\U}{\mathcal{U}}
+\renewcommand{\L}{\mathcal{L}}
+\newcommand{\M}{\mathcal{M}}
+\renewcommand{\P}{\mathcal{P}}
+\newcommand{\J}{\mathcal{J}}
+\newcommand{\K}{\mathcal{K}}
+\newcommand{\V}{\mathcal{V}}
+\newcommand{\disk}{\mathbf{D}}
+\newcommand{\hs}{\mathbf{H}}
+\newcommand{\pD}{\partial \disk}
+\newcommand{\io}[1]{\mathcal{I}_{#1}}
+\newcommand{\fourier}{\CF}
+
+\newcommand{\la}{\lambda}
+\newcommand{\al}{\alpha}
+\newcommand{\s}{\sigma}
+\newcommand{\sm}{\setminus}
+\newcommand{\es}{\emptyset}
+\newcommand{\charac}[1]{\chi\raisebox{-4bp}{\scriptsize$#1$}}
+
+\newcommand*{\st}{\medspace | \medspace}
+\newcommand*{\inner}[2]{\left\langle #1,#2 \right\rangle}
+\newcommand*{\norm}[1]{\| #1 \|}
+
+%\renewcommand{\phi}{\varphi}
+\renewcommand{\epsilon}{\varepsilon}
+
+\DeclarePairedDelimiter\abs{\lvert}{\rvert} %Requires mathtools
+\DeclarePairedDelimiter\norm{\lVert}{\rVert} %Requires mathtools
+\DeclarePairedDelimiter\ip{\langle}{\rangle} %Requires mathtools
+\DeclarePairedDelimiter\paren{(}{)} %Requires mathtools
+\DeclarePairedDelimiter\br{\{}{\}} %Requires mathtools
+
+\newcommand{\I}[3][)]{\if)#1 \int #2 \, \integrald#3
+\else\int_{#1} #2 \, \integrald#3\fi}
+
+\newcommand{\Int}[4]{\int_{#1}^{#2} #3 \, \integrald#4}
+\newcommand{\intn}[4]{\int_{#1}^{#2} #3 \, \frac{\integrald #4}{2\pi}}
+\newcommand{\intN}[4]{\int_{#1}^{#2} #3 \, \frac{\integrald #4}{\sqrt{2\pi}}}
+\newcommand{\fmu}[2][]{#1 \, \integrald #2}
+\newcommand{\fun}[3]{#1 \colon #2 \to #3}
+\newcommand{\rhat}{\raisebox{1bp}{$\,\hat{}\,$}}
+\newcommand{\rtilde}{\raisebox{1bp}{$\,\tilde{}\,$}}
+\newcommand{\om}{\abs} % outer measure
+\newcommand{\integrald}{\textnormal{\slshape d}}
+
+%\DeclareMathOperator{\EX}{\mathbb{E}}% expected value
+\newcommand*{\EX}{\mathbb{E}}
+
+\DeclareMathOperator{\ran}{range}
+\DeclareMathOperator{\Span}{span}
+\DeclareMathOperator{\re}{Re}
+\DeclareMathOperator{\im}{Im}
+\DeclareMathOperator{\tr}{trace}
+\DeclareMathOperator{\sign}{sign}
+\DeclareMathOperator{\perm}{perm}
+\DeclareMathOperator{\vol}{volume}
+\def\ker{\qopname\relax o{null}}
+\def\sp{\qopname\relax o{sp}}
+
+\newcommand{\qed}{\nolinebreak\hfill$\rule{1ex}{1.4ex}$}
+\newcommand{\uppar}[1]{\/\textup{(}#1\/\textup{)}}
+\newcommand*{\defeq}{\stackrel{\text{def}}{=}}
