@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import cvxpy as cp
 import sympy as sp
+from itertools import combinations
 
 
 class TwoLayerFFNet(nn.Module):
@@ -145,9 +146,9 @@ def build_M_in(P, P_vals, W0, b0, W1, b1, logging=False):
     sp.var('k1 k2 nu1 nu2 eta1 eta2 lambda a b x1 x2 eps')
 
     _in_ = sp.BlockMatrix([
-            [sp.eye(W0_in_dim),      sp.zeros(W0_in_dim, W1_in_dim), sp.zeros(W0_in_dim, 1)],
-            [sp.zeros(1, W0_in_dim), sp.zeros(1, W1_in_dim),         sp.eye(1)]
-         ])
+        [sp.eye(W0_in_dim),      sp.zeros(W0_in_dim, W1_in_dim), sp.zeros(W0_in_dim, 1)],
+        [sp.zeros(1, W0_in_dim), sp.zeros(1, W1_in_dim),         sp.eye(1)]
+     ])
 
     M_in_P = sp.MatMul(_in_.T, P, _in_)
 
@@ -160,10 +161,57 @@ def build_M_in(P, P_vals, W0, b0, W1, b1, logging=False):
 
     return sp.Matrix(M_in_P.subs(P_vals))
 
-def build_M_mid(Q, Q_vals, W0, b0, W1, b1, logging=False, activ_func='relu'):
-    # Q is specified by the caller and quadratically overapproximates
-    # the region of interest in the input space of f (typically a hypercube)
+def _build_T(dim):
+    T = sp.zeros(dim, dim)
+    lambdas_ij = [] # keep track of free sympy variables
+    for (i,j) in combinations(range(0, dim), 2):
+        l = sp.symbols(f"lambda{i}{j}")
+        lambdas_ij.append(l)
+        ei = sp.zeros(dim, 1)
+        ei[i] = 1
+        ej = sp.zeros(dim, 1)
+        ej[j] = 1
+        v = ei - ej
+        m = l * sp.MatMul(v, v.T)
+        T += m
+    return T, lambdas_ij
 
+
+def _build_Q_for_relu(dim):
+    # build quadratic relaxation matrix for the graph of ReLU
+    # applied componentwise on a vector in R^dim
+
+    T, Q_vars = _build_T(dim)
+
+    # using full generallity in case I want to extend to other activations
+    alpha, beta = 0, 1
+    lambdas = [sp.symbols(f"lambda{i}") for i in range(0, dim)]
+    nus = sp.Matrix([[sp.symbols(f"nu{i}")] for i in range(0, dim)])
+    etas = sp.Matrix([[sp.symbols(f"eta{i}")] for i in range(0, dim)])
+
+    # keep track of free sympy variables
+    Q_vars = Q_vars + [nu for nu in nus]
+    Q_vars = Q_vars + lambdas
+    Q_vars = Q_vars + [nu for nu in nus]
+
+    diag_lambda = sp.diag(*lambdas)
+
+    Q11 = -2 * alpha * beta * (diag_lambda + T)
+    Q12 = (alpha + beta) * (diag_lambda + T)
+    Q13 = -1 * beta * nus - alpha * etas
+    Q22 = -2 * (diag_lambda + T)
+    Q23 = nus + etas
+    Q33 = sp.zeros(1,1)
+
+    Q = sp.BlockMatrix([
+        [Q11,   Q12,   Q13],
+        [Q12.T, Q22,   Q23],
+        [Q13.T, Q23.T, Q33],
+    ])
+    # sp.pprint(Q)
+    return Q, Q_vars
+
+def build_M_mid(Q, Q_vals, W0, b0, W1, b1, logging=False, activ_func='relu'):
     W0_in_dim =  W0.shape[1]
     W0_out_dim = W0.shape[0]
     W1_in_dim =  W1.shape[1]
@@ -182,25 +230,22 @@ def build_M_mid(Q, Q_vals, W0, b0, W1, b1, logging=False, activ_func='relu'):
     # sp.var('k1 k2 nu1 nu2 eta1 eta2 lambda a b x1 x2 eps')
 
     _mid_ = sp.BlockMatrix([
-            [_W0,                              sp.zeros(W0_out_dim, W1_in_dim), _b0],
-            [sp.zeros(W1_out_dim, W0_out_dim), sp.eye(W1_in_dim),               sp.zeros(W1_out_dim, 1)],
-            [sp.zeros(1, W0_in_dim),           sp.zeros(1, W1_in_dim),          sp.eye(1, 1)],
-         ])
+        [_W0,                              sp.zeros(W0_out_dim, W1_in_dim), _b0],
+        [sp.zeros(W1_out_dim, W0_out_dim), sp.eye(W1_in_dim),               sp.zeros(W1_out_dim, 1)],
+        [sp.zeros(1, W0_in_dim),           sp.zeros(1, W1_in_dim),          sp.eye(1, 1)],
+     ])
 
 
-    sp.pprint(_mid_.as_explicit())
-    sp.pprint(Q.as_explicit())
-    return
     M_mid_Q = sp.MatMul(_mid_.T, Q, _mid_)
-    return
-    assert(M_mid_Q.is_symmetric())
+    sp.pprint(M_mid_Q)
+    assert(sp.Matrix(M_mid_Q).is_symmetric())
 
-    vals={_W0: W0, _b0: b0, Q: S}
+    vals={_W0: W0, _b0: b0}
     if logging:
         sp.pprint(M_mid_Q)
         sp.pprint(sp.Matrix(M_mid_Q.subs(Q_vals)))
 
-    return sp.Matrix(M_in_P.subs(Q_vals))
+    return sp.Matrix(M_mid_Q.subs(Q_vals))
 
 def one_NN_SDP_builder():
     # build a 2 layer NN with 1x1 weight matrices
@@ -225,6 +270,7 @@ def one_NN_SDP_builder():
     M_out_S = build_M_out(S=S, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
     # M_mid_Q = build_M_mid(Q=Q, Q_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
 
+
 def two_NN_SDP_builder():
     # build a 2 layer NN with 2x2 weight matrices
     # feed weights into matrix builder functions
@@ -240,16 +286,18 @@ def two_NN_SDP_builder():
     W1 = sp.Matrix([[.9, 0], [0,.9]])
     b1 = sp.Matrix([[1],[1]])
 
+    # TODO: turn this into a function that generates
+    #       a halfspace relaxation from a given hyperplane
     # this quadratic relaxation defines the halfspace in R^2 defined by the line x1>x2
     S  = sp.Matrix([[0, 0, 0, 0, 0],
                     [0, 0, 0, 0, 0],
                     [0, 0, 0, 0, -1],
                     [0, 0, 0, 0, 1],
                     [0, 0, -1, 1, 0]])
-    Q = S
+
+    # TODO: turn this into a function that generates a hypercube relaxation at a given point
     sp.var('k1 k2 nu1 nu2 eta1 eta2 lambda a b x1 x2 eps')
     p_vals = {x1:1, x2:1, eps:0.01, a:2, b:3}
-
     # this is the form of a quadratic relaxation for a unit ball under infinity-norm
     # (aka hyper-cube) in R^2, with radius eps centered at (x1,x2). a,b are restricted to gt 0.
     P = sp.Matrix([[-2*a,   0,      2*a*x1],
@@ -257,7 +305,8 @@ def two_NN_SDP_builder():
                    [2*a*x1, 2*a*x2, (-2*(a*x1**2 + b*x2**2 + (a-b)*eps**2))]])
 
     M_in_P = build_M_in(P=P, P_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
-    # M_mid_Q = build_M_mid(Q=S, Q_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
+    Q, Q_vars = _build_Q_for_relu(dim=W0.shape[0])
+    M_mid_Q = build_M_mid(Q=Q, Q_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
     M_out_S = build_M_out(S=S, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
 
 if __name__ == '__main__':
