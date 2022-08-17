@@ -208,7 +208,8 @@ def _build_Q_for_relu(dim):
         [Q12.T, Q22,   Q23],
         [Q13.T, Q23.T, Q33],
     ])
-    # sp.pprint(Q)
+    assert(sp.Matrix(Q).is_symmetric())
+
     return Q, Q_vars
 
 def build_M_mid(Q, Q_vals, W0, b0, W1, b1, logging=False, activ_func='relu'):
@@ -235,9 +236,8 @@ def build_M_mid(Q, Q_vals, W0, b0, W1, b1, logging=False, activ_func='relu'):
         [sp.zeros(1, W0_in_dim),           sp.zeros(1, W1_in_dim),          sp.eye(1, 1)],
      ])
 
-
     M_mid_Q = sp.MatMul(_mid_.T, Q, _mid_)
-    sp.pprint(M_mid_Q)
+
     assert(sp.Matrix(M_mid_Q).is_symmetric())
 
     vals={_W0: W0, _b0: b0}
@@ -270,6 +270,27 @@ def one_NN_SDP_builder():
     M_out_S = build_M_out(S=S, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
     # M_mid_Q = build_M_mid(Q=Q, Q_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
 
+def _build_quadratic_aprox_for_hypercube(center):
+    # TODO: turn this into a function that generates a hypercube relaxation at a given point
+    sp.var('a b x1 x2 eps')
+    p_vals = {x1:1, x2:1, eps:0.01, a:2, b:3}
+    # this is the form of a quadratic relaxation for a unit ball under infinity-norm
+    # (aka hyper-cube) in R^2, with radius eps centered at (x1,x2). a,b are restricted to gt 0.
+    P = sp.Matrix([[-2*a,   0,      2*a*x1],
+                   [0,      -2*b,   2*a*x2],
+                   [2*a*x1, 2*a*x2, (-2*(a*x1**2 + b*x2**2 + (a-b)*eps**2))]])
+    return P, p_vals
+
+def _relaxation_for_half_space(c, d):
+    # TODO: make it a real function
+    # for half space defined by cx - d <= 0
+    # this quadratic relaxation defines the halfspace in R^2 defined by the line x1>x2
+    S  = sp.Matrix([[0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, -1],
+                    [0, 0, 0, 0, 1],
+                    [0, 0, -1, 1, 0]])
+    return S
 
 def two_NN_SDP_builder():
     # build a 2 layer NN with 2x2 weight matrices
@@ -286,28 +307,24 @@ def two_NN_SDP_builder():
     W1 = sp.Matrix([[.9, 0], [0,.9]])
     b1 = sp.Matrix([[1],[1]])
 
-    # TODO: turn this into a function that generates
-    #       a halfspace relaxation from a given hyperplane
-    # this quadratic relaxation defines the halfspace in R^2 defined by the line x1>x2
-    S  = sp.Matrix([[0, 0, 0, 0, 0],
-                    [0, 0, 0, 0, 0],
-                    [0, 0, 0, 0, -1],
-                    [0, 0, 0, 0, 1],
-                    [0, 0, -1, 1, 0]])
 
-    # TODO: turn this into a function that generates a hypercube relaxation at a given point
-    sp.var('k1 k2 nu1 nu2 eta1 eta2 lambda a b x1 x2 eps')
-    p_vals = {x1:1, x2:1, eps:0.01, a:2, b:3}
-    # this is the form of a quadratic relaxation for a unit ball under infinity-norm
-    # (aka hyper-cube) in R^2, with radius eps centered at (x1,x2). a,b are restricted to gt 0.
-    P = sp.Matrix([[-2*a,   0,      2*a*x1],
-                   [0,      -2*b,   2*a*x2],
-                   [2*a*x1, 2*a*x2, (-2*(a*x1**2 + b*x2**2 + (a-b)*eps**2))]])
-
-    M_in_P = build_M_in(P=P, P_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
+    S = _relaxation_for_half_space(None, None)
+    P, p_vals = _build_quadratic_aprox_for_hypercube(center=None)
+    M_in_P = build_M_in(P=P, P_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=False)
     Q, Q_vars = _build_Q_for_relu(dim=W0.shape[0])
-    M_mid_Q = build_M_mid(Q=Q, Q_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
-    M_out_S = build_M_out(S=S, W0=W0, b0=b0, W1=W1, b1=b1, logging=True)
+    M_mid_Q = build_M_mid(Q=Q, Q_vals=p_vals, W0=W0, b0=b0, W1=W1, b1=b1, logging=False)
+    M_out_S = build_M_out(S=S, W0=W0, b0=b0, W1=W1, b1=b1, logging=False)
+
+    X = M_in_P + M_mid_Q + M_out_S
+    sp.pprint(X)
+
+    # How to programatically convert to cvxpy problem?
+    # sp.pprint(Q)
+    # for i in range(0, Q.shape[0]):
+        # for j in range(0, Q.shape[1]):
+            # el = Q[i,j]
+            # print(f"{el} - {type(el)}")
+
 
 if __name__ == '__main__':
     # device = "cuda" if torch.cuda.is_available() else "cpu"
