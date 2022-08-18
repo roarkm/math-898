@@ -6,7 +6,6 @@ def build_M_out(S, W0, b0, W1, b1):
     # S is specified by caller and quadratically overapproximates
     # the safety set in the graph of f.
     # There are no free variables in the returned matrix.
-
     W0_in_dim =  W0.shape[1]
     W0_out_dim = W0.shape[0]
     W1_in_dim =  W1.shape[1]
@@ -28,7 +27,6 @@ def build_M_out(S, W0, b0, W1, b1):
 def build_M_in(P, W0, b0, W1, b1):
     # P is specified by the caller and quadratically overapproximates
     # the region of interest in the input space of f (typically a hypercube)
-
     W0_in_dim =  W0.shape[1]
     W0_out_dim = W0.shape[0]
     W1_in_dim =  W1.shape[1]
@@ -94,6 +92,7 @@ def _build_Q_for_relu(dim, constraints=[]):
     ])
     return Q, constraints
 
+
 def build_M_mid(Q, constraints, W0, b0, W1, b1, activ_func='relu'):
     W0_in_dim =  W0.shape[1]
     W0_out_dim = W0.shape[0]
@@ -141,23 +140,24 @@ def _relaxation_for_half_space(c, d, dim_x):
     ])
     return S
 
-def two_by_two_test():
-    x = np.matrix('9; 1')
-    eps=1.005
 
+def two_layer_verification(x=[[9],[1]], eps=1):
+    x = np.matrix(x)
     W0 = np.matrix('1 0; 0 1')
     b0 = np.matrix('0; 0')
     W1 = np.matrix('.99 0; 0 .99')
     b1 = np.matrix('1; 1')
 
+    assert x.shape[0] == W0.shape[1]
+
     im_x = W1 @ np.maximum(0, W0 @ x + b0) + b1
-    klass = np.argmax(im_x)
-    print(f"f({x.T}) = {im_x.T} |--> class: {klass}")
+    x_class = np.argmax(im_x)
+    print(f"f({x.T}) = {im_x.T} |--> class: {x_class}")
 
     # TODO: make this work for higher dimensions
     d=0
     c = np.matrix('-1; 1') # defines halfspace where y1 > y2
-    if klass == 1:
+    if x_class == 1:
         c = -1 * c # defines halfspace where y2 > y1
 
     P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
@@ -177,10 +177,11 @@ def two_by_two_test():
 
     status = prob.status
     if status == cp.OPTIMAL:
-        print(f"Certificate that all x within {eps} inf-norm of {x.T} are classified as class {klass}")
+        print(f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
     elif status == cp.INFEASIBLE:
-        print(f"Could NOT verify that all x within {eps} inf-norm of {x.T} are classified as {klass}")
-    # TODO:
+        # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
+        print(f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}")
+    # TODO: what do these mean (in this context)?
     # elif status == cp.UNBOUNDED:
     # elif status == cp.OPTIMAL_INACCURATE:
     # elif status == cp.INFEASIBLE_INACCURATE:
@@ -189,4 +190,4 @@ def two_by_two_test():
 
 
 if __name__ == '__main__':
-    two_by_two_test()
+    two_layer_verification([[1],[1]], eps=0.7)
