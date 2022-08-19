@@ -1,6 +1,47 @@
 import numpy as np
+import torch
+import torch.nn as nn
 import cvxpy as cp
 from itertools import combinations
+
+class TwoLayerFFNet(nn.Module):
+    # A simple 1 layer feedforward nn with relu activation
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super(TwoLayerFFNet, self).__init__()
+        self.fc0 = nn.Linear(input_dim, hidden_dim)
+        self.relu = nn.ReLU()
+        self.fc1 = nn.Linear(hidden_dim, output_dim)
+
+
+    def __str__(self):
+        # s = super(TwoLayerFFNet, self).__str__()
+        s = ""
+        s += f"w0 : {self.fc0.weight.data} \n"
+        s += f"b0 : {self.fc0.bias.data} \n"
+        s += f"w1 : {self.fc1.weight.data} \n"
+        s += f"b1 : {self.fc1.bias.data} \n"
+        return s
+
+
+    def init_weights(self, w0=None, b0=None, w1=None, b1=None):
+        with torch.no_grad():
+            if w0:
+                self.fc0.weight.copy_(torch.tensor(w0))
+            if b0:
+                self.fc0.bias.copy_(torch.tensor(b0))
+            if w1:
+                self.fc1.weight.copy_(torch.tensor(w1))
+            if b1:
+                self.fc1.bias.copy_(torch.tensor(b1))
+        return
+
+
+    def forward(self, x):
+        out = self.fc0(x)
+        out = self.relu(out)
+        out = self.fc1(out)
+        return out
+
 
 def build_M_out(S, W0, b0, W1, b1):
     # S is specified by caller and quadratically overapproximates
@@ -141,18 +182,21 @@ def _relaxation_for_half_space(c, d, dim_x):
     return S
 
 
-def two_layer_verification(x=[[9],[1]], eps=1):
+def two_layer_verification(x=[[9],[1]], eps=1, f=None):
+    weights, bias_vecs = get_weights_from_nn(f)
+
     x = np.matrix(x)
-    W0 = np.matrix('1 0; 0 1')
-    b0 = np.matrix('0; 0')
-    W1 = np.matrix('.99 0; 0 .99')
-    b1 = np.matrix('1; 1')
+    W0 = np.matrix(weights[0])
+    b0 = np.matrix(bias_vecs[0]).T
+    W1 = np.matrix(weights[1])
+    b1 = np.matrix(bias_vecs[1]).T
 
     assert x.shape[0] == W0.shape[1]
 
-    im_x = W1 @ np.maximum(0, W0 @ x + b0) + b1
+    # im_x = W1 @ np.maximum(0, W0 @ x + b0) + b1
+    im_x = f(torch.tensor(x).T.float()).data.T.tolist()
     x_class = np.argmax(im_x)
-    print(f"f({x.T}) = {im_x.T} |--> class: {x_class}")
+    print(f"f({x.T}) = {im_x} |--> class: {x_class}")
 
     # TODO: make this work for higher dimensions
     d=0
@@ -189,5 +233,26 @@ def two_layer_verification(x=[[9],[1]], eps=1):
     # elif status == cp.INFEASIBLE_OR_UNBOUNDED:
 
 
+def get_weights_from_nn(f):
+    # only handles 'flat' ffnn's (for now)
+    # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
+    weights, bias_vecs = [], []
+    for i, c in enumerate(f.children()):
+        if isinstance(c, nn.modules.linear.Linear):
+            weights.append(c.weight.data.tolist())
+            bias_vecs.append(c.bias.data.tolist())
+        else:
+            assert isinstance(c, nn.modules.activation.ReLU)
+    return weights, bias_vecs
+
+
 if __name__ == '__main__':
-    two_layer_verification([[1],[1]], eps=0.7)
+    W0 = [[.9, 0],
+          [0,.9]]
+    b0 = (0,0)
+    W1 = [[.9, 0],
+          [0,.9]]
+    b1 = (0,0)
+    f = TwoLayerFFNet(2,2,2)
+    f.init_weights(w0=W0, b0=b0, w1=W1, b1=b1)
+    two_layer_verification(x=[[1],[1]], eps=0.007, f=f)
