@@ -1,8 +1,12 @@
 import numpy as np
 import torch
+import seaborn
 import torch.nn as nn
 import cvxpy as cp
 from itertools import combinations
+from matplotlib import pyplot as plt
+import pylab as pyl
+from mpl_toolkits.mplot3d import Axes3D
 
 class TwoLayerFFNet(nn.Module):
     # A simple 1 layer feedforward nn with relu activation
@@ -100,7 +104,7 @@ def _build_T(dim, constraints=[]):
     return T, constraints
 
 
-def _build_Q_for_relu(dim, constraints=[]):
+def _build_Q_for_relu(dim, constraints=[], free_vars=[]):
     # build quadratic relaxation matrix for the graph of ReLU
     # applied componentwise on a vector in R^dim
 
@@ -111,6 +115,7 @@ def _build_Q_for_relu(dim, constraints=[]):
     _lambdas = cp.Variable(dim, 'lambda')
     _nus = cp.Variable(dim, name='nu')
     _etas = cp.Variable(dim, name='eta')
+    free_vars += [_lambdas, _nus, _etas]
 
     constraints += [_nus >= 0]
     constraints += [_etas >= 0]
@@ -131,7 +136,7 @@ def _build_Q_for_relu(dim, constraints=[]):
         [Q12.T, Q22,   Q23],
         [Q13.T, Q23.T, Q33],
     ])
-    return Q, constraints
+    return Q, constraints, free_vars
 
 
 def build_M_mid(Q, constraints, W0, b0, W1, b1, activ_func='relu'):
@@ -155,19 +160,20 @@ def build_M_mid(Q, constraints, W0, b0, W1, b1, activ_func='relu'):
     return M_mid_Q, constraints
 
 
-def _relaxation_for_hypercube(x, epsilon, constraints=[]):
+def _relaxation_for_hypercube(x, epsilon, constraints=[], free_vars=[]):
     n = x.shape[0]
     x_floor = x - epsilon * np.ones((n,1))
     x_ceil =  x + epsilon * np.ones((n,1))
 
     a = cp.Variable(n, name='a')
+    free_vars += [a]
     Gamma = cp.diag(a)
     constraints += [a >= 0]
     P = cp.bmat([
         [-2*Gamma,                     Gamma @ (x_floor + x_ceil)],
         [(x_floor + x_ceil).T @ Gamma, -2 * x_floor.T @ Gamma @ x_ceil]
     ])
-    return P, constraints
+    return P, constraints, free_vars
 
 
 def _relaxation_for_half_space(c, d, dim_x):
@@ -196,7 +202,6 @@ def two_layer_verification(x=[[9],[1]], eps=1, f=None):
     # im_x = W1 @ np.maximum(0, W0 @ x + b0) + b1
     im_x = f(torch.tensor(x).T.float()).data.T.tolist()
     x_class = np.argmax(im_x)
-    print(f"f({x.T}) = {im_x} |--> class: {x_class}")
 
     # TODO: make this work for higher dimensions
     d=0
@@ -204,21 +209,35 @@ def two_layer_verification(x=[[9],[1]], eps=1, f=None):
     if x_class == 1:
         c = -1 * c # defines halfspace where y2 > y1
 
-    P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
-    Q, constraints = _build_Q_for_relu(dim=W0.shape[0], constraints=constraints)
+    P, constraints, _free_vars = _relaxation_for_hypercube(x=x, epsilon=eps)
+    Q, constraints, _free_vars = _build_Q_for_relu(dim=W0.shape[0],
+                                                  constraints=constraints,
+                                                  free_vars=_free_vars)
     S = _relaxation_for_half_space(c=c, d=d, dim_x=W0.shape[1])
 
+    free_vars = cp.hstack(_free_vars)
+    free_vars = cp.diag(free_vars)
+
     M_in_P = build_M_in(P=P, W0=W0, b0=b0, W1=W1, b1=b1)
-    M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
-                                       W0=W0, b0=b0, W1=W1, b1=b1)
+    M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints, W0=W0, b0=b0, W1=W1, b1=b1)
     M_out_S = build_M_out(S=S, W0=W0, b0=b0, W1=W1, b1=b1)
 
     X = M_in_P + M_mid_Q + M_out_S
+    # Y = cp.bmat([
+        # [-1*X,                                       np.zeros((X.shape[0], free_vars.shape[1]))],
+        # [np.zeros((free_vars.shape[0], X.shape[1])), free_vars]
+    # ])
+    # constraints += [Y >> 0]
     constraints += [X << 0]
 
     prob = cp.Problem(cp.Minimize(1), constraints)
     prob.solve()
+    # print(Q.value)
 
+    print_P(P=P, ref_point=x, eps=eps)
+    exit()
+
+    print(f"f({x.T}) = {im_x} |--> class: {x_class}")
     status = prob.status
     if status == cp.OPTIMAL:
         print(f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
@@ -231,6 +250,52 @@ def two_layer_verification(x=[[9],[1]], eps=1, f=None):
     # elif status == cp.INFEASIBLE_INACCURATE:
     # elif status == cp.UNBOUNDED_INACCURATE:
     # elif status == cp.INFEASIBLE_OR_UNBOUNDED:
+
+def make_quadratic(M):
+    # returns a function that computes the quadratic invoked by P
+    def M_quad(x,y):
+        _M = np.array(M.value)
+        # assert len(x)+1 == _M.shape[1]
+        _x = np.vstack(np.concatenate([[x], [y], np.array([1])]))
+        z =  _x.T @ _M @ _x
+        # print(z[0][0])
+        # print((z+1)[0][0]
+        # z =  z + 1
+        # z =  np.maximum(0, _x.T @ _M @ _x + 8)
+        return z
+    return np.vectorize(M_quad)
+    # return M_quad
+
+
+def print_P(P, ref_point, eps):
+
+    p = make_quadratic(P)
+    grid_size = 50
+    _x, _y = np.linspace(-10,10,grid_size), np.linspace(-10,10,grid_size)
+    x, y  = np.meshgrid(_x, _y)
+    z = p(x,y)
+
+    im = pyl.imshow(z,cmap=pyl.cm.RdBu) # drawing the function
+    cset = pyl.contour(z, np.arange(z.min(), z.max(), (z.max() - z.min())/10),
+                       linewidths=2, cmap=pyl.cm.Set2) # adding the Contour lines with labels
+    pyl.clabel(cset, inline=True, fmt='%1.1f',fontsize=10)
+    pyl.colorbar(im) # adding the colobar on the right
+    # latex fashion title
+    pyl.show()
+
+    # h = plt.contourf(x, y, z)
+    # plt.axis('scaled')
+    # plt.colorbar()
+    # plt.show()
+
+    # fig = plt.figure(figsize = (10,7))
+    # ax = plt.axes(projection='3d')
+    # ax.plot_surface(x, y, z, rstride=5, cstride=5, cmap='cool')
+    # ax.set_title("Surface Bonus", fontsize = 13)
+    # ax.set_xlabel('x', fontsize = 11)
+    # ax.set_ylabel('y', fontsize = 11)
+    # ax.set_zlabel('Z', fontsize = 11)
+    # plt.show()
 
 
 def get_weights_from_nn(f):
@@ -247,6 +312,7 @@ def get_weights_from_nn(f):
 
 
 if __name__ == '__main__':
+
     W0 = [[.9, 0],
           [0,.9]]
     b0 = (0,0)
