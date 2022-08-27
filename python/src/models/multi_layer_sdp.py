@@ -9,43 +9,62 @@ import pylab as pyl
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.linalg import block_diag
 
-class TwoLayerFFNet(nn.Module):
+class MultiLayerNN(nn.Module):
     # A simple 1 layer feedforward nn with relu activation
-    def __init__(self, input_dim, hidden_dim, output_dim):
-        super(TwoLayerFFNet, self).__init__()
-        self.fc0 = nn.Linear(input_dim, hidden_dim)
+    def __init__(self, weights, bias_vecs):
+        super(MultiLayerNN, self).__init__()
         self.relu = nn.ReLU()
-        self.fc1 = nn.Linear(hidden_dim, output_dim)
+        self.layers = []
+        self.init_weights(weights, bias_vecs)
 
 
     def __str__(self):
-        # s = super(TwoLayerFFNet, self).__str__()
+        # s = super(MultiLayerNN, self).__str__()
         s = ""
-        s += f"w0 : {self.fc0.weight.data} \n"
-        s += f"b0 : {self.fc0.bias.data} \n"
-        s += f"w1 : {self.fc1.weight.data} \n"
-        s += f"b1 : {self.fc1.bias.data} \n"
+        for i, l in enumerate(self.layers):
+            s += f"W{i}: {l.weight.data} \n"
+            s += f"b{i} : {l.bias.data} \n"
         return s
 
 
-    def init_weights(self, w0=None, b0=None, w1=None, b1=None):
+    def verify_weight_dims(self, weights, bias_vecs):
+        assert len(weights) == len(bias_vecs)
+        for i in range(0, len(weights)):
+            # print(weights[i], bias_vecs[i])
+            _out_dim = weights[i].shape[0]
+            if i < len(weights) - 1:
+                assert _out_dim == len(bias_vecs[i+1])
+            if i > 0:
+                assert weights[i].shape[1] == weights[i-1].shape[0]
+        return None
+
+
+    def list_to_np(self, lmats):
+        _m = []
+        for m in lmats:
+            _m.append(np.matrix(m))
+        return _m
+
+
+    def init_weights(self, weights, bias_vecs):
+        weights = self.list_to_np(weights)
+        # bias_vecs = self.list_to_np(bias_vecs)
+
+        self.verify_weight_dims(weights, bias_vecs)
+
         with torch.no_grad():
-            if w0:
-                self.fc0.weight.copy_(torch.tensor(w0))
-            if b0:
-                self.fc0.bias.copy_(torch.tensor(b0))
-            if w1:
-                self.fc1.weight.copy_(torch.tensor(w1))
-            if b1:
-                self.fc1.bias.copy_(torch.tensor(b1))
+            for i, w in enumerate(weights):
+                self.layers.append(nn.Linear(w.shape[1], w.shape[0]))
+                self.layers[i].weight.copy_(torch.tensor(w))
+                self.layers[i].bias.copy_(torch.tensor(bias_vecs[i]))
         return
 
 
     def forward(self, x):
-        out = self.fc0(x)
-        out = self.relu(out)
-        out = self.fc1(out)
-        return out
+        for l in self.layers:
+            x = l(x)
+            x = self.relu(x)
+        return x
 
 
 def build_M_out(S, weights, bias_vecs):
@@ -175,16 +194,6 @@ def _relaxation_for_half_space(c, d, dim_x):
     return S
 
 
-def verify_weight_dims(weights, bias_vecs):
-    assert len(weights) == len(bias_vecs)
-    for i in range(0, len(weights)-1):
-        last_out_dim = weights[i].shape[0]
-        assert last_out_dim == bias_vecs[i].shape[0]
-        if i > 0:
-            assert weights[i].shape[1] == last_out_dim
-    return None
-
-
 def _build_E(weights, k):
     E = []
     r = weights[k].shape[1]
@@ -199,7 +208,7 @@ def _build_E(weights, k):
 def multi_layer_verification(x=[[9],[1]], eps=1, f=None):
 
     weights, bias_vecs = get_weights_from_nn(f)
-    verify_weight_dims(weights, bias_vecs)
+    # verify_weight_dims(weights, bias_vecs)
 
     x = np.matrix(x)
     xl = _build_xl(x, weights, bias_vecs)
@@ -215,6 +224,7 @@ def multi_layer_verification(x=[[9],[1]], eps=1, f=None):
         c = -1 * c # defines halfspace where y2 > y1
 
     P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
+    exit()
     Q, constraints = _build_Q_for_relu(dim=weights[0].shape[0], constraints=constraints)
     S = _relaxation_for_half_space(c=c, d=d, dim_x=weights[0].shape[1])
 
@@ -272,12 +282,21 @@ def _build_xl(x0, weights, bias):
 
 if __name__ == '__main__':
 
-    W0 = [[1, 0],
-          [0,1]]
-    b0 = (0,0)
-    W1 = [[.9, 0],
+    weights = [
+        [[1, 0],
+         [0,1]],
+        [[9, 0],
+          [0,9]],
+        [[.9, 0],
           [0,.9]]
-    b1 = (0,0)
-    f = TwoLayerFFNet(2,2,2)
-    f.init_weights(w0=W0, b0=b0, w1=W1, b1=b1)
+    ]
+    bias_vecs =[
+        (0,0),
+        (2,2),
+        (1,1),
+    ]
+    f = MultiLayerNN(weights, bias_vecs)
+    print(f)
+    exit()
+    # f.init_weights(w0=W0, b0=b0, w1=W1, b1=b1)
     multi_layer_verification(x=[[1],[1]], eps=0.007, f=f)
