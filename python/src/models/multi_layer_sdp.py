@@ -9,28 +9,32 @@ import pylab as pyl
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.linalg import block_diag
 
+
 class MultiLayerNN(nn.Module):
-    # A simple 1 layer feedforward nn with relu activation
+
+
     def __init__(self, weights, bias_vecs):
         super(MultiLayerNN, self).__init__()
         self.relu = nn.ReLU()
-        self.layers = []
+        self.layers = nn.ModuleList()
         self.init_weights(weights, bias_vecs)
+        self.in_dim = self.layers[0].weight.data.shape[1]
 
 
     def __str__(self):
-        # s = super(MultiLayerNN, self).__str__()
         s = ""
         for i, l in enumerate(self.layers):
-            s += f"W{i}: {l.weight.data} \n"
-            s += f"b{i} : {l.bias.data} \n"
+            if isinstance(l, nn.Linear):
+                s += f"W{int(i/2)}: {l.weight.data} \n"
+                s += f"b{int(i/2)} : {l.bias.data} \n"
+            if isinstance(l, nn.modules.activation.ReLU):
+                s += f"ReLU\n"
         return s
 
 
     def verify_weight_dims(self, weights, bias_vecs):
         assert len(weights) == len(bias_vecs)
         for i in range(0, len(weights)):
-            # print(weights[i], bias_vecs[i])
             _out_dim = weights[i].shape[0]
             if i < len(weights) - 1:
                 assert _out_dim == len(bias_vecs[i+1])
@@ -48,22 +52,22 @@ class MultiLayerNN(nn.Module):
 
     def init_weights(self, weights, bias_vecs):
         weights = self.list_to_np(weights)
-        # bias_vecs = self.list_to_np(bias_vecs)
-
         self.verify_weight_dims(weights, bias_vecs)
 
         with torch.no_grad():
             for i, w in enumerate(weights):
-                self.layers.append(nn.Linear(w.shape[1], w.shape[0]))
-                self.layers[i].weight.copy_(torch.tensor(w))
-                self.layers[i].bias.copy_(torch.tensor(bias_vecs[i]))
+                l = nn.Linear(w.shape[1], w.shape[0])
+                l.weight.copy_(torch.tensor(w))
+                l.bias.copy_(torch.tensor(bias_vecs[i]))
+                self.layers.append(l)
+                if i != len(weights)-1:
+                    self.layers.append(self.relu)
         return
 
 
     def forward(self, x):
         for l in self.layers:
             x = l(x)
-            x = self.relu(x)
         return x
 
 
@@ -73,10 +77,9 @@ def build_M_out(S, weights, bias_vecs):
     # There are no free variables in the returned matrix.
     E0 = _build_E(weights, 0)
     El = _build_E(weights, len(weights)-1)
-
     _out_ = np.block([
-        [E0,             np.zeros((E0.shape[0], 1))],
-        [weights[-1]*El, np.matrix(bias_vecs[-1]).T],
+        [E0,                         np.zeros((E0.shape[0], 1))],
+        [weights[-1]*El,             np.matrix(bias_vecs[-1]).T],
         [np.zeros((1, E0.shape[1])), np.eye(1)]
     ])
     return _out_.T * S * _out_
@@ -88,7 +91,7 @@ def build_M_in(P, weights, bias_vecs):
     assert(P.shape[0] == weights[0].shape[1] + 1)
     E0 = _build_E(weights, 0)
     _in_ = cp.bmat([
-        [E0, np.zeros((E0.shape[0], 1))],
+        [E0,                         np.zeros((E0.shape[0], 1))],
         [np.zeros((1, E0.shape[1])), np.eye(1)],
     ])
     M_in_P = _in_.T @ P @ _in_
@@ -205,27 +208,25 @@ def _build_E(weights, k):
     return np.matrix(np.block([ E ]))
 
 
-def multi_layer_verification(x=[[9],[1]], eps=1, f=None):
+def multi_layer_verification(x=[[1],[1]], eps=1, f=None):
 
     weights, bias_vecs = get_weights_from_nn(f)
-    # verify_weight_dims(weights, bias_vecs)
 
     x = np.matrix(x)
-    xl = _build_xl(x, weights, bias_vecs)
-    # f_in_dim = weights[0].shape[0]
 
     im_x = f(torch.tensor(x).T.float()).data.T.tolist()
     x_class = np.argmax(im_x)
 
-    # TODO: make this work for higher dimensions
-    d=0
+    # TODO: make this work for higher dimensions (multiclass classifier)
+    d = 0
     c = np.matrix('-1; 1') # defines halfspace where y1 > y2
     if x_class == 1:
         c = -1 * c # defines halfspace where y2 > y1
 
     P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
-    exit()
-    Q, constraints = _build_Q_for_relu(dim=weights[0].shape[0], constraints=constraints)
+    # TODO: verify what the shape of Q should actually be
+    dim = sum([w.shape[0] for w in weights[:-1]]) # not sure this is correct
+    Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
     S = _relaxation_for_half_space(c=c, d=d, dim_x=weights[0].shape[1])
 
     M_in_P = build_M_in(P, weights, bias_vecs)
@@ -246,12 +247,17 @@ def multi_layer_verification(x=[[9],[1]], eps=1, f=None):
     elif status == cp.INFEASIBLE:
         # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
         print(f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}")
-    # TODO: what do these mean (in this context)?
-    # elif status == cp.UNBOUNDED:
-    # elif status == cp.OPTIMAL_INACCURATE:
-    # elif status == cp.INFEASIBLE_INACCURATE:
-    # elif status == cp.UNBOUNDED_INACCURATE:
-    # elif status == cp.INFEASIBLE_OR_UNBOUNDED:
+    elif status == cp.UNBOUNDED:
+        print(f"Problem is unbounded - {cp.OPTIMAL_INACCURATE}")
+    elif status == cp.OPTIMAL_INACCURATE:
+        print(f"RUH ROH - {cp.OPTIMAL_INACCURATE}")
+        print(f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
+    elif status == cp.INFEASIBLE_INACCURATE:
+        print(f"RUH ROH - {cp.INFEASIBLE_INACCURATE}")
+    elif status == cp.UNBOUNDED_INACCURATE:
+        print(f"RUH ROH - {cp.UNBOUNDED_INACCURATE}")
+    elif status == cp.INFEASIBLE_OR_UNBOUNDED:
+        print(f"RUH ROH - {cp.INFEASIBLE_OR_UNBOUNDED}")
 
     # print("P = \n", P.value)
     # print("Q = \n", Q.value)
@@ -261,42 +267,34 @@ def get_weights_from_nn(f):
     # only handles 'flat' ffnn's (for now)
     # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
     weights, bias_vecs = [], []
-    for i, c in enumerate(f.children()):
-        if isinstance(c, nn.modules.linear.Linear):
-            weights.append(c.weight.data.numpy())
-            bias_vecs.append(c.bias.data.numpy())
+    for i, l in enumerate(f.layers):
+        if isinstance(l, nn.modules.linear.Linear):
+            weights.append(l.weight.data.numpy())
+            bias_vecs.append(l.bias.data.numpy())
         else:
-            assert isinstance(c, nn.modules.activation.ReLU)
+            assert isinstance(l, nn.modules.activation.ReLU)
     return weights, bias_vecs
-
-
-def _build_xl(x0, weights, bias):
-    _xi = np.matrix(x0)
-    xl = _xi
-    for i, w in enumerate(weights):
-        _xj = (np.matrix(w) * _xi) + np.matrix(bias[i]).T
-        xl = np.concatenate((xl, _xj))
-        _xi = _xj
-    return xl
 
 
 if __name__ == '__main__':
 
+    # TODO: Setup testing infra
+    # TODO: try with more layers
+    # TODO: try with non-square matrices
+    # TODO: handle optimal_inaccurate (numerical instability?)
     weights = [
         [[1, 0],
-         [0,1]],
-        [[9, 0],
-          [0,9]],
-        [[.9, 0],
-          [0,.9]]
+         [0, 1]],
+        [[2, 0],
+         [0, 2]],
+        [[3, 0],
+         [0, 3]]
     ]
     bias_vecs =[
-        (0,0),
-        (2,2),
         (1,1),
+        (2,2),
+        (3,3),
     ]
     f = MultiLayerNN(weights, bias_vecs)
-    print(f)
-    exit()
-    # f.init_weights(w0=W0, b0=b0, w1=W1, b1=b1)
-    multi_layer_verification(x=[[1],[1]], eps=0.007, f=f)
+    # print(f)
+    multi_layer_verification(x=[[9],[1]], eps=0.007, f=f)
