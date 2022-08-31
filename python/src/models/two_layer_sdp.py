@@ -234,8 +234,8 @@ def two_layer_verification(x=[[9],[1]], eps=1, f=None):
     prob.solve()
     # print(Q.value)
 
-    print_P(P=P, ref_point=x, eps=eps)
-    exit()
+    # print_P(P=P, ref_point=x, eps=eps)
+    # exit()
 
     print(f"f({x.T}) = {im_x} |--> class: {x_class}")
     status = prob.status
@@ -304,8 +304,8 @@ def get_weights_from_nn(f):
     weights, bias_vecs = [], []
     for i, c in enumerate(f.children()):
         if isinstance(c, nn.modules.linear.Linear):
-            weights.append(c.weight.data.tolist())
-            bias_vecs.append(c.bias.data.tolist())
+            weights.append(c.weight.data.numpy())
+            bias_vecs.append(c.bias.data.numpy())
         else:
             assert isinstance(c, nn.modules.activation.ReLU)
     return weights, bias_vecs
