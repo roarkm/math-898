@@ -1,15 +1,85 @@
-import numpy as np
+from itertools import combinations
 import torch
-import seaborn
 import torch.nn as nn
 import cvxpy as cp
-from itertools import combinations
-from matplotlib import pyplot as plt
-import pylab as pyl
-from mpl_toolkits.mplot3d import Axes3D
+import numpy as np
+# import seaborn
+# from matplotlib import pyplot as plt
+# import pylab as pyl
+# from mpl_toolkits.mplot3d import Axes3D
 from scipy.linalg import block_diag
 from src.models.multi_layer import MultiLayerNN
+from src.algorithms.abstract_verifier import AbstractVerifier
 
+
+class Certify(AbstractVerifier):
+
+    def __init__(self, f=None):
+        super(Certify, self).__init__(f)
+        self.constraints = []
+
+
+    def __str__(self):
+        s = 'Certify Algorithm\n'
+        s += super().__str__()
+        return s
+
+
+    def verifiy_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
+
+        weights, bias_vecs = self.get_weights_from_nn(self.f)
+
+        x = np.matrix(x)
+        im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
+        x_class = np.argmax(im_x)
+
+        # TODO: make this work for higher dimensions (multiclass classifier)
+        assert len(im_x) == 2, "Currently only supporting halfspace safety sets"
+        d = 0
+        c = np.matrix('-1; 1') # defines halfspace where y1 > y2
+        if x_class == 1:
+            c = -1 * c # defines halfspace where y2 > y1
+
+        P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
+        # TODO: verify what the shape of Q should actually be
+        dim = sum([w.shape[0] for w in weights[:-1]]) # not sure this is correct
+        Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
+        S = _relaxation_for_half_space(c=c, d=d, dim_x=weights[0].shape[1])
+
+        M_in_P = build_M_in(P, weights, bias_vecs)
+        M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
+                                           weights=weights, bias_vecs=bias_vecs)
+        M_out_S = build_M_out(S, weights, bias_vecs)
+
+        X = M_in_P + M_mid_Q + M_out_S
+
+        constraints += [X << 0]
+
+        prob = cp.Problem(cp.Minimize(1), constraints)
+        prob.solve(verbose=verbose, max_iters=max_iters)
+
+        print(f"f({x.T}) = {im_x} |--> class: {x_class}")
+        status = prob.status
+        if status == cp.OPTIMAL:
+            print(f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
+        elif status == cp.INFEASIBLE:
+            # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
+            print(f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}")
+        elif status == cp.UNBOUNDED:
+            print(f"Problem is unbounded - {cp.OPTIMAL_INACCURATE}")
+        elif status == cp.OPTIMAL_INACCURATE:
+            print(f"RUH ROH - {cp.OPTIMAL_INACCURATE}")
+            print(f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
+        elif status == cp.INFEASIBLE_INACCURATE:
+            print(f"RUH ROH - {cp.INFEASIBLE_INACCURATE}")
+        elif status == cp.UNBOUNDED_INACCURATE:
+            print(f"RUH ROH - {cp.UNBOUNDED_INACCURATE}")
+        elif status == cp.INFEASIBLE_OR_UNBOUNDED:
+            print(f"RUH ROH - {cp.INFEASIBLE_OR_UNBOUNDED}")
+
+        if verbose:
+            print("P = \n", P.value)
+            print("Q = \n", Q.value)
 
 def build_M_out(S, weights, bias_vecs):
     # S is specified by caller and quadratically overapproximates
@@ -119,7 +189,7 @@ def _relaxation_for_hypercube(x, epsilon, constraints=[]):
     Gamma = cp.diag(a)
     constraints += [a >= 0]
     P = cp.bmat([
-        [-2*Gamma,                     Gamma @ (x_floor + x_ceil)],
+        [-2 * Gamma,                   Gamma @ (x_floor + x_ceil)],
         [(x_floor + x_ceil).T @ Gamma, -2 * x_floor.T @ Gamma @ x_ceil]
     ])
     return P, constraints
@@ -148,93 +218,26 @@ def _build_E(weights, k):
     return np.matrix(np.block([ E ]))
 
 
-def multi_layer_verification(x=[[1],[1]], eps=1, f=None):
-
-    weights, bias_vecs = get_weights_from_nn(f)
-
-    x = np.matrix(x)
-
-    im_x = f(torch.tensor(x).T.float()).data.T.tolist()
-    x_class = np.argmax(im_x)
-
-    # TODO: make this work for higher dimensions (multiclass classifier)
-    d = 0
-    c = np.matrix('-1; 1') # defines halfspace where y1 > y2
-    if x_class == 1:
-        c = -1 * c # defines halfspace where y2 > y1
-
-    P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
-    # TODO: verify what the shape of Q should actually be
-    dim = sum([w.shape[0] for w in weights[:-1]]) # not sure this is correct
-    Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
-    S = _relaxation_for_half_space(c=c, d=d, dim_x=weights[0].shape[1])
-
-    M_in_P = build_M_in(P, weights, bias_vecs)
-    M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
-                                       weights=weights, bias_vecs=bias_vecs)
-    M_out_S = build_M_out(S, weights, bias_vecs)
-    X = M_in_P + M_mid_Q + M_out_S
-
-    constraints += [X << 0]
-
-    prob = cp.Problem(cp.Minimize(1), constraints)
-    prob.solve()
-
-    print(f"f({x.T}) = {im_x} |--> class: {x_class}")
-    status = prob.status
-    if status == cp.OPTIMAL:
-        print(f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
-    elif status == cp.INFEASIBLE:
-        # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
-        print(f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}")
-    elif status == cp.UNBOUNDED:
-        print(f"Problem is unbounded - {cp.OPTIMAL_INACCURATE}")
-    elif status == cp.OPTIMAL_INACCURATE:
-        print(f"RUH ROH - {cp.OPTIMAL_INACCURATE}")
-        print(f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
-    elif status == cp.INFEASIBLE_INACCURATE:
-        print(f"RUH ROH - {cp.INFEASIBLE_INACCURATE}")
-    elif status == cp.UNBOUNDED_INACCURATE:
-        print(f"RUH ROH - {cp.UNBOUNDED_INACCURATE}")
-    elif status == cp.INFEASIBLE_OR_UNBOUNDED:
-        print(f"RUH ROH - {cp.INFEASIBLE_OR_UNBOUNDED}")
-
-    # print("P = \n", P.value)
-    # print("Q = \n", Q.value)
-
-
-def get_weights_from_nn(f):
-    # only handles 'flat' ffnn's (for now)
-    # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
-    weights, bias_vecs = [], []
-    for i, l in enumerate(f.layers):
-        if isinstance(l, nn.modules.linear.Linear):
-            weights.append(l.weight.data.numpy())
-            bias_vecs.append(l.bias.data.numpy())
-        else:
-            assert isinstance(l, nn.modules.activation.ReLU)
-    return weights, bias_vecs
-
-
 if __name__ == '__main__':
 
     # TODO: Setup testing infra
-    # TODO: try with more layers
     # TODO: try with non-square matrices
-    # TODO: handle optimal_inaccurate (numerical instability?)
     weights = [
         [[1, 0],
          [0, 1]],
         [[2, 0],
          [0, 2]],
-        [[3, 0],
-         [0, 3]]
+        # [[3, 0],
+         # [0, 3]],
+        # [[4, 0],
+         # [0, 4]],
     ]
     bias_vecs =[
         (1,1),
         (2,2),
-        (3,3),
+        # (3,3),
+        # (4,4),
     ]
     f = MultiLayerNN(weights, bias_vecs)
-    # print(f)
-    multi_layer_verification(x=[[9],[1]], eps=0.007, f=f)
+    cert = Certify(f)
+    cert.verifiy_at_point(verbose=True)
