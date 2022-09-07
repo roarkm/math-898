@@ -27,8 +27,6 @@ class Certify(AbstractVerifier):
 
     def verifiy_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
 
-        weights, bias_vecs = self.get_weights_from_nn(self.f)
-
         x = np.matrix(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         x_class = np.argmax(im_x)
@@ -42,14 +40,14 @@ class Certify(AbstractVerifier):
 
         P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
         # TODO: verify what the shape of Q should actually be
-        dim = sum([w.shape[0] for w in weights[:-1]]) # not sure this is correct
+        dim = sum([w.shape[0] for w in self.nn_weights[:-1]]) # not sure this is correct
         Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
-        S = _relaxation_for_half_space(c=c, d=d, dim_x=weights[0].shape[1])
+        S = _relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
 
-        M_in_P = build_M_in(P, weights, bias_vecs)
+        M_in_P = build_M_in(P, self.nn_weights, self.nn_bias_vecs)
         M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
-                                           weights=weights, bias_vecs=bias_vecs)
-        M_out_S = build_M_out(S, weights, bias_vecs)
+                                           weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
+        M_out_S = build_M_out(S, self.nn_weights, self.nn_bias_vecs)
 
         X = M_in_P + M_mid_Q + M_out_S
 
