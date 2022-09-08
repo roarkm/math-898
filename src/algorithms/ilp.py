@@ -15,7 +15,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         self.constraints = list()
 
 
-    def constraints_for_inf_ball(self, center, eps):
+    def constraints_for_inf_ball(self, center, eps, verbose=False):
         # create a list containing the constraints for an inf-ball of radius eps
         # set constraints for hypercube around x
         A_lt = np.zeros((2, len(center)))
@@ -40,8 +40,10 @@ class IteratedLinearVerifier(AbstractVerifier):
                 _a = np.matrix([[ -1 * float(center[i][0]) - eps ]])
                 a_vec = np.vstack([a_vec, _a])
 
-        print(A_lt)
-        print(a_vec)
+        if verbose:
+            print(f"Constraints for inf-ball radius {eps} at center {center}")
+            print(A_lt)
+            print(a_vec)
         return [A_lt @ z0 <= a_vec]
 
 
@@ -61,7 +63,7 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         constraints = []
         # set constraints for hypercube around x
-        constraints += self.constraints_for_inf_ball(center=x, eps=eps)
+        constraints += self.constraints_for_inf_ball(center=x, eps=eps, verbose=True)
         exit()
 
         # propogate x layer by layer through f adding constraints based on activation pattern
