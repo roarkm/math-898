@@ -47,6 +47,31 @@ class IteratedLinearVerifier(AbstractVerifier):
         return [A_lt @ z0 <= a_vec]
 
 
+    def constraints_for_k_class_polytope(self, k, x, verbose=False):
+        # build a polytope constraint matrix corresponding to the output region
+        # of the k-th class
+        # ie - the polytope corresponding to the region of R^dim where
+        # the k-th component is greater than all other components
+        # returns a list containing the inequality constraints in matrix form
+        z = cp.bmat([cp.Variable(len(x), name='z')]).T
+        n_rows = len(x)-1
+        A = np.zeros((n_rows, len(x)))
+        A[:,k] = 1
+
+        row = 0
+        for j in range(0, len(x)):
+            if j == k:
+                continue
+            A[row][j] = -1
+            row += 1
+
+        b = np.zeros((n_rows, 1))
+        if verbose:
+            print(f"Polytope for {len(x)}-class classifier. k={k}.")
+            print(A)
+            print(b)
+        return [A @ z >= b] # for compliment, use <= ?
+
     def verify_at_point(self, x=[[9], [0]], eps=0.5):
         # use ILP to verify all x' within eps inf norm of x
         # are classified the same as x'
@@ -63,11 +88,12 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         constraints = []
         # set constraints for hypercube around x
-        constraints += self.constraints_for_inf_ball(center=x, eps=eps, verbose=True)
+        constraints += self.constraints_for_inf_ball(center=x, eps=eps)
+        constraints += self.constraints_for_k_class_polytope(k=0, x=x)
+
         exit()
 
         # propogate x layer by layer through f adding constraints based on activation pattern
-
         _im_x = np.matrix(x)
         for i, w in enumerate(self.nn_weights):
             _wi = np.matrix(w)
