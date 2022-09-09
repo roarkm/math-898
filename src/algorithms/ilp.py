@@ -59,41 +59,57 @@ class IteratedLinearVerifier(AbstractVerifier):
         assert self.f != None, "No NN provided."
         assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
-        # creat objective function: inf-norm(x - z) with z as opt var, x fixed.
-        # n = cp.norm(x, 'inf')
-
-        x = np.matrix(x)
-        im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
-        x_class = np.argmax(im_x)
-
-        constraints = []
-        # set constraints for hypercube around x
-        constraints += self.constraints_for_inf_ball(center=x, eps=eps)
-
-        # propogate x layer by layer through f adding constraints based on activation pattern
         _im_x = np.matrix(x)
-        for i, w in enumerate(self.nn_weights):
-            _wi = np.matrix(w)
-            _bi = np.matrix(self.nn_bias_vecs[i])
-            _im_x = _wi * _im_x + _bi.T
+        fx = self.f(torch.tensor(_im_x).T.float()).detach().numpy()
+        x_class = np.argmax(fx)
 
-            # zi = cp.Variable(_wi.shape[0], f"z{i}")
+        # optimization var list starting with x0
+        # x0 is unconstrained since we are using inf-ball in objective function
+        xi_list = [cp.bmat([cp.Variable(len(x), name='x0')]).T]
 
-            # if i > 0:
-                # self.constraints += [zi == _wi * zi + _bi]
+        # propogate x layer by layer through f
+        # 1) add constraints for affine transforms
+        # 2) add constraints ReLU activation pattern
+        for i in range(0, len(self.nn_weights)):
+            Wi = np.matrix(self.nn_weights[i])
+            bi = np.matrix(self.nn_bias_vecs[i]).T
 
-            # if i < len(self.nn_weights):
-                # _im_x = self.relu(torch.tensor(_im_x)).numpy()
+            # add constraint for affine transformation
+            xi_list.append(cp.bmat([cp.Variable(Wi.shape[0], f"x{i}_hat")]).T)
+            xi_hat = Wi @ xi_list[-2] + bi
+            self.constraints += [xi_list[-1] == xi_hat]
 
-        print(_im_x)
+            # add constraints for ReLU activation pattern
+            xi_list.append(cp.bmat([cp.Variable(Wi.shape[0], f"x{i}")]).T)
+            _im_x = Wi * _im_x + bi # propogate reference point
 
-        constraints += self.constraints_for_k_class_polytope(k=0, x=x)
+            # _im_x = np.matrix(self.relu(torch.tensor(Wi * _im_x + bi)))
+            # build indicator vector to encode inequality constraint on xi_hat as dot product
+            delta = np.zeros((1, len(_im_x)))
+            beta  = np.zeros((1, len(_im_x)))
+            for j, _im_x_j in enumerate(_im_x):
+                if _im_x_j[0,0] >= 0:
+                    # xi_hat[j] >= 0 iff (1 * xi_hat[j] >= 0)
+                    delta[0,j] = 1
+                    # constraint xi == xi_hat
+                    beta[0,j] = 1
+                else:
+                    # xi_hat[j] < 0 iff (-1 * xi_hat[j] > 0)
+                    delta[0,j] = -1
+                    # constraint xi == 0)
+                    beta[0,j] = 0
 
-        # add constraints eg
-        # self.constraints += [_nus >= 0]
+            self.constraints += [delta @ xi_hat >= 0]
+            self.constraints += [xi_list[-1] == beta @ xi_hat] # constraint (xi == xi_hat OR xi == 0)
 
-        # prob = cp.Problem(cp.Minimize(1), constraints)
-        # prob.solve()
+
+        self.constraints += self.constraints_for_k_class_polytope(k=x_class, x=x)
+
+        # obj = cp.Maximize(cp.atoms.norm_inf(x - cp.bmat([xi_list[0]])))
+        problem = cp.Problem(cp.Maximize(cp.atoms.norm_inf(x-cp.bmat([xi_list[0]]))), self.constraints)
+        # problem = cp.Problem(cp.Maximize(cp.atoms.norm_inf(x-cp.bmat([xi_list[0]]))), self.constraints)
+        # problem = cp.Problem(cp.Maximize(cp.norm(x-cp.bmat([xi_list[0]]), 'inf')), self.constraints)
+        problem.solve()
 
         return None
 
@@ -101,10 +117,10 @@ class IteratedLinearVerifier(AbstractVerifier):
 if __name__ == '__main__':
 
     weights = [
-        [[1, 0],
+        [[-1, 0],
          [0, 1]],
         [[2, 0],
-         [0, 2]],
+         [0, -2]],
         # [[3, 0],
          # [0, 3]]
     ]
