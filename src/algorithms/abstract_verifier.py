@@ -31,6 +31,7 @@ class AbstractVerifier():
         # ie - the polytope corresponding to the region of R^dim where
         # the k-th component is greater than all other components
         # returns a list containing the inequality constraints in matrix form
+        assert complement == False, "Complement option not yet supported"
         z = cp.bmat([cp.Variable(len(x), name='z')]).T
         n_rows = len(x)-1
         A = np.zeros((n_rows, len(x)))
@@ -49,8 +50,8 @@ class AbstractVerifier():
             print(A)
             print(b)
 
-        if complement:
-            return [A @ z <= b] # eh, is this even correct?
+        # if complement:
+            # return [A @ z <= b] # eh, is this even correct? (NO)
         return [A @ z >= b]
 
 
