@@ -25,7 +25,7 @@ class AbstractVerifier():
         return weights, bias_vecs
 
 
-    def constraints_for_k_class_polytope(self, k, x, verbose=False, compliment=False):
+    def constraints_for_k_class_polytope(self, k, x, verbose=False, complement=False):
         # build a polytope constraint matrix corresponding to the output region
         # of the k-th class
         # ie - the polytope corresponding to the region of R^dim where
@@ -49,7 +49,7 @@ class AbstractVerifier():
             print(A)
             print(b)
 
-        if compliment:
+        if complement:
             return [A @ z <= b] # eh, is this even correct?
         return [A @ z >= b]
 
