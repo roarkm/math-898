@@ -69,7 +69,7 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         # propogate x layer by layer through f
         # 1) add constraints for affine transforms
-        # 2) add constraints ReLU activation pattern
+        # 2) add constraints for ReLU activation pattern
         for i in range(0, len(self.nn_weights)):
             Wi = np.matrix(self.nn_weights[i])
             bi = np.matrix(self.nn_bias_vecs[i]).T
@@ -81,35 +81,63 @@ class IteratedLinearVerifier(AbstractVerifier):
 
             # add constraints for ReLU activation pattern
             xi_list.append(cp.bmat([cp.Variable(Wi.shape[0], f"x{i}")]).T)
-            _im_x = Wi * _im_x + bi # propogate reference point
+            # propogate reference point
+            _im_x = Wi * _im_x + bi
 
-            # _im_x = np.matrix(self.relu(torch.tensor(Wi * _im_x + bi)))
-            # build indicator vector to encode inequality constraint on xi_hat as dot product
-            delta = np.zeros((1, len(_im_x)))
-            beta  = np.zeros((1, len(_im_x)))
-            for j, _im_x_j in enumerate(_im_x):
-                if _im_x_j[0,0] >= 0:
-                    # xi_hat[j] >= 0 iff (1 * xi_hat[j] >= 0)
-                    delta[0,j] = 1
-                    # constraint xi == xi_hat
-                    beta[0,j] = 1
-                else:
-                    # xi_hat[j] < 0 iff (-1 * xi_hat[j] > 0)
-                    delta[0,j] = -1
-                    # constraint xi == 0)
-                    beta[0,j] = 0
+            # for all but the last layer (last layer has no ReLU)
+            if i < len(self.nn_weights):
+                # build indicator vector to encode inequality constraint on xi_hat as dot product
+                delta = np.zeros((1, len(_im_x)))
+                beta  = np.zeros((1, len(_im_x)))
+                for j, _im_x_j in enumerate(_im_x):
+                    if _im_x_j[0,0] >= 0:
+                        # xi_hat[j] >= 0 iff (1 * xi_hat[j] >= 0)
+                        delta[0,j] = 1
+                        # constraint xi == xi_hat
+                        beta[0,j] = 1
+                    else:
+                        # xi_hat[j] < 0 iff (-1 * xi_hat[j] > 0)
+                        delta[0,j] = -1
+                        # constraint xi == 0
+                        beta[0,j] = 0
 
-            self.constraints += [delta @ xi_hat >= 0]
-            self.constraints += [xi_list[-1] == beta @ xi_hat] # constraint (xi == xi_hat OR xi == 0)
+                # continue propogating reference point through f
+                _im_x = np.matrix(self.relu(torch.tensor(_im_x)))
 
+                # constraint (xi_hat >= 0 OR xi_hat < 0)
+                self.constraints += [delta @ xi_hat >= 0]
 
-        self.constraints += self.constraints_for_k_class_polytope(k=x_class, x=x)
+                # constraint (xi == xi_hat OR xi == 0)
+                self.constraints += [xi_list[-1] == beta @ xi_hat]
 
-        # obj = cp.Maximize(cp.atoms.norm_inf(x - cp.bmat([xi_list[0]])))
-        problem = cp.Problem(cp.Maximize(cp.atoms.norm_inf(x-cp.bmat([xi_list[0]]))), self.constraints)
-        # problem = cp.Problem(cp.Maximize(cp.atoms.norm_inf(x-cp.bmat([xi_list[0]]))), self.constraints)
-        # problem = cp.Problem(cp.Maximize(cp.norm(x-cp.bmat([xi_list[0]]), 'inf')), self.constraints)
+        self.constraints += self.constraints_for_k_class_polytope(k=x_class, x=x, compliment=True)
+
+        obj = cp.Minimize(cp.atoms.norm_inf(np.matrix(x) - xi_list[0]))
+        problem = cp.Problem(obj, self.constraints)
         problem.solve()
+
+        print(f"f({x}) = {fx} |--> class: {x_class}")
+        status = problem.status
+        if status == cp.OPTIMAL:
+            # TODO: double check whether we need compliment of safety set
+            print(f"SUCCESS: ")
+            # TODO: compare optimal value to epsilon
+            #       if bigger, then we have verified?
+            print(f"Opt value = {problem.value}")
+        elif status == cp.INFEASIBLE:
+            # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
+            print(f"COULD NOT verify")
+        elif status == cp.UNBOUNDED:
+            print(f"Problem is unbounded - {cp.OPTIMAL_INACCURATE}")
+        elif status == cp.OPTIMAL_INACCURATE:
+            print(f"RUH ROH - {cp.OPTIMAL_INACCURATE}")
+            print(f"SUCCESS?")
+        elif status == cp.INFEASIBLE_INACCURATE:
+            print(f"RUH ROH - {cp.INFEASIBLE_INACCURATE}")
+        elif status == cp.UNBOUNDED_INACCURATE:
+            print(f"RUH ROH - {cp.UNBOUNDED_INACCURATE}")
+        elif status == cp.INFEASIBLE_OR_UNBOUNDED:
+            print(f"RUH ROH - {cp.INFEASIBLE_OR_UNBOUNDED}")
 
         return None
 
