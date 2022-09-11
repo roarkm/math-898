@@ -27,14 +27,14 @@ class Certify(AbstractVerifier):
 
     def verifiy_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
 
-        x = np.matrix(x)
+        x = np.array(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         x_class = np.argmax(im_x)
 
         # TODO: make this work for higher dimensions (multiclass classifier)
         assert len(im_x) == 2, "Currently only supporting halfspace safety sets"
         d = 0
-        c = np.matrix('-1; 1') # defines halfspace where y1 > y2
+        c = np.array([[-1], [1]]) # defines halfspace where y1 > y2
         if x_class == 1:
             c = -1 * c # defines halfspace where y2 > y1
 
