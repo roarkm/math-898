@@ -97,10 +97,10 @@ def build_M_out(S, weights, bias_vecs):
     El = _build_E(weights, len(weights)-1)
     _out_ = np.block([
         [E0,                         np.zeros((E0.shape[0], 1))],
-        [weights[-1]*El,             np.array([bias_vecs[-1]]).T],
+        [weights[-1]@El,             np.array([bias_vecs[-1]]).T],
         [np.zeros((1, E0.shape[1])), np.eye(1)]
     ])
-    return _out_.T * S * _out_
+    return _out_.T @ S @ _out_
 
 
 def build_M_in(P, weights, bias_vecs):
@@ -224,7 +224,7 @@ def _build_E(weights, k):
     E.append(np.eye(r))
     if k < len(weights)-1:
         E.append(np.zeros((r, sum([w.shape[1] for w in weights[k+1:]]))))
-    return np.matrix(np.block([ E ]))
+    return np.array(np.block([ E ]))
 
 
 if __name__ == '__main__':
