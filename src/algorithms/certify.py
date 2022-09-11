@@ -207,10 +207,11 @@ def _relaxation_for_half_space(c, d, dim_x):
     # for half space defined by {y : cy < d} (in the output space of NN)
     # dim_x is the input space dimension of the NN
     dim_c = c.shape[0]
+
     S = np.block([
         [np.zeros((dim_x, dim_x)), np.zeros((dim_x, dim_c)), np.zeros((dim_x,1))],
         [np.zeros((dim_c, dim_x)), np.zeros((dim_c, dim_c)), c],
-        [np.zeros((1, dim_x)),     c.T,                      -2*np.matrix([d])]
+        [np.zeros((1, dim_x)),     c.T,                      -2*np.array([[d]])]
     ])
     return S
 
