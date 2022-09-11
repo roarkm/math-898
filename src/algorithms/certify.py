@@ -176,7 +176,7 @@ def build_M_mid(Q, constraints, weights, bias_vecs, activ_func='relu'):
     B = np.block([
         [np.zeros((_m, weights[0].shape[1])), block_diag(*[np.eye(w.shape[1]) for w in weights[1:]])]
     ])
-    bias_concat = np.matrix(np.concatenate(bias_vecs[:-1])).T
+    bias_concat = np.array([np.concatenate(bias_vecs[:-1])]).T
 
     _mid_ = np.block([
         [A,                         bias_concat],
