@@ -39,7 +39,7 @@ class MultiLayerNN(nn.Module):
     def list_to_np(self, lmats):
         _m = []
         for m in lmats:
-            _m.append(np.matrix(m))
+            _m.append(np.array(m))
         return _m
 
 
