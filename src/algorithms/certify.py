@@ -56,28 +56,38 @@ class Certify(AbstractVerifier):
         prob = cp.Problem(cp.Minimize(1), constraints)
         prob.solve(verbose=verbose, max_iters=max_iters)
 
-        print(f"f({x.T}) = {im_x} |--> class: {x_class}")
+        debug = ""
+        debug += f"f({x.T}) = {im_x} |--> class: {x_class}"
         status = prob.status
         if status == cp.OPTIMAL:
-            print(f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
+            debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}"
+            verified = True
+        elif status == cp.OPTIMAL_INACCURATE:
+            debug += f"RUH ROH - {cp.OPTIMAL_INACCURATE}"
+            debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}"
+            verified = True
         elif status == cp.INFEASIBLE:
             # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
-            print(f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}")
-        elif status == cp.UNBOUNDED:
-            print(f"Problem is unbounded - {cp.OPTIMAL_INACCURATE}")
-        elif status == cp.OPTIMAL_INACCURATE:
-            print(f"RUH ROH - {cp.OPTIMAL_INACCURATE}")
-            print(f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}")
+            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}"
+            verified = False
         elif status == cp.INFEASIBLE_INACCURATE:
-            print(f"RUH ROH - {cp.INFEASIBLE_INACCURATE}")
+            debug += f"RUH ROH - {cp.INFEASIBLE_INACCURATE}"
+            verified = False
+        elif status == cp.UNBOUNDED:
+            debug += f"Problem is unbounded - {cp.OPTIMAL_INACCURATE}"
+            verified = False
         elif status == cp.UNBOUNDED_INACCURATE:
-            print(f"RUH ROH - {cp.UNBOUNDED_INACCURATE}")
+            debug += f"RUH ROH - {cp.UNBOUNDED_INACCURATE}"
+            verified = False
         elif status == cp.INFEASIBLE_OR_UNBOUNDED:
-            print(f"RUH ROH - {cp.INFEASIBLE_OR_UNBOUNDED}")
+            debug += f"RUH ROH - {cp.INFEASIBLE_OR_UNBOUNDED}"
+            verified = False
 
         if verbose:
-            print("P = \n", P.value)
-            print("Q = \n", Q.value)
+            debug += f"P =\n {P.value}"
+            debug += f"Q =\n {Q.value}"
+            print(debug)
+        return verified
 
 def build_M_out(S, weights, bias_vecs):
     # S is specified by caller and quadratically overapproximates
