@@ -54,38 +54,39 @@ class Certify(AbstractVerifier):
         constraints += [X << 0]
 
         prob = cp.Problem(cp.Minimize(1), constraints)
-        prob.solve(verbose=verbose, max_iters=max_iters)
+        prob.solve(verbose=verbose, max_iters=max_iters, solver=cp.CVXOPT)
 
         debug = ""
-        debug += f"f({x.T}) = {im_x} |--> class: {x_class}"
+        debug += f"f({x.T}) = {im_x} |--> class: {x_class}\n"
+        debug += f"{prob.status}\n"
         status = prob.status
         if status == cp.OPTIMAL:
-            debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}"
+            debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
         elif status == cp.OPTIMAL_INACCURATE:
-            debug += f"RUH ROH - {cp.OPTIMAL_INACCURATE}"
-            debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}"
+            debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
         elif status == cp.INFEASIBLE:
             # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
-            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}"
+            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
         elif status == cp.INFEASIBLE_INACCURATE:
-            debug += f"RUH ROH - {cp.INFEASIBLE_INACCURATE}"
+            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
         elif status == cp.UNBOUNDED:
-            debug += f"Problem is unbounded - {cp.OPTIMAL_INACCURATE}"
+            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
         elif status == cp.UNBOUNDED_INACCURATE:
-            debug += f"RUH ROH - {cp.UNBOUNDED_INACCURATE}"
+            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
         elif status == cp.INFEASIBLE_OR_UNBOUNDED:
-            debug += f"RUH ROH - {cp.INFEASIBLE_OR_UNBOUNDED}"
+            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
 
         if verbose:
-            debug += f"P =\n {P.value}"
-            debug += f"Q =\n {Q.value}"
+            if verified:
+                debug += f"P =\n {P.value}\n"
+                debug += f"Q =\n {Q.value}\n"
             print(debug)
         return verified
 
@@ -234,19 +235,22 @@ if __name__ == '__main__':
     weights = [
         [[1, 0],
          [0, 1]],
-        [[2, 0],
-         [0, 2]],
+        [[1, 0],
+         [0, 1]],
         # [[3, 0],
          # [0, 3]],
         # [[4, 0],
          # [0, 4]],
     ]
     bias_vecs =[
-        (1,1),
-        (2,2),
+        (0,0),
+        (0,0),
         # (3,3),
         # (4,4),
     ]
     f = MultiLayerNN(weights, bias_vecs)
     cert = Certify(f)
-    cert.verifiy_at_point(verbose=True)
+    x = [[9], [0]]
+    eps = 0.5
+    is_robust = cert.verifiy_at_point(x=x, eps=eps, verbose=True)
+    print(f"Identity is {eps}-robust at {x}? {is_robust}")
