@@ -31,13 +31,16 @@ class Certify(AbstractVerifier):
         c = self.sep_hplane_for_advclass(x, complement=True)
 
         P = symbolic_relaxation_for_hypercube(x=x, epsilon=eps)
-        sp.pprint(P)
-        exit()
-        # dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
-        # Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
-        # S = _relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
+        # sp.pprint(P)
+        dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
+        Q = symbolic_relaxation_for_relu(dim=dim)
+        # sp.pprint(Q)
+        S = symbolic_relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
+        # sp.pprint(S)
 
-        # M_in_P = build_M_in(P, self.nn_weights, self.nn_bias_vecs)
+        M_in_P = symbolic_build_M_in(P, self.nn_weights, self.nn_bias_vecs)
+        sp.pprint(M_in_P)
+        exit()
         # M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
                                            # weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
         # M_out_S = build_M_out(S, self.nn_weights, self.nn_bias_vecs)
@@ -116,6 +119,20 @@ def build_M_out(S, weights, bias_vecs):
         [np.zeros((1, E0.shape[1])), np.eye(1)]
     ])
     return _out_.T @ S @ _out_
+
+
+def symbolic_build_M_in(P, weights, bias_vecs):
+    # P is specified by the caller and quadratically overapproximates
+    # the region of interest in the input space of f (typically a hypercube)
+    assert(P.shape[0] == weights[0].shape[1] + 1)
+    E0 = _build_E(weights, 0)
+    E0 = sp.Matrix(E0)
+    _in_ = sp.BlockMatrix([
+        [E0,                       sp.zeros(E0.shape[0], 1)],
+        [sp.zeros(1, E0.shape[1])               , sp.eye(1)],
+    ])
+    M_in_P = _in_.T @ P @ _in_
+    return M_in_P
 
 
 def build_M_in(P, weights, bias_vecs):
@@ -203,6 +220,56 @@ def build_M_mid(Q, constraints, weights, bias_vecs, activ_func='relu'):
     return M_mid_Q, constraints
 
 
+def symbolic_build_T(dim):
+    T = sp.zeros(dim, dim)
+    lambdas_ij = [] # keep track of free sympy variables
+    for (i,j) in combinations(range(0, dim), 2):
+        l = sp.symbols(f"lambda{i}{j}")
+        lambdas_ij.append(l)
+        ei = sp.zeros(dim, 1)
+        ei[i] = 1
+        ej = sp.zeros(dim, 1)
+        ej[j] = 1
+        v = ei - ej
+        m = l * sp.MatMul(v, v.T)
+        T += m
+    return T, lambdas_ij
+
+
+def symbolic_relaxation_for_relu(dim):
+    # build quadratic relaxation matrix for the graph of ReLU
+    # applied componentwise on a vector in R^dim
+
+    T, Q_vars = symbolic_build_T(dim)
+    # using full generallity in case I want to extend to other activations
+    alpha, beta = 0, 1
+    lambdas = [sp.symbols(f"lambda{i}") for i in range(0, dim)]
+    nus = sp.Matrix([[sp.symbols(f"nu{i}")] for i in range(0, dim)])
+    etas = sp.Matrix([[sp.symbols(f"eta{i}")] for i in range(0, dim)])
+
+    # keep track of free sympy variables
+    Q_vars = Q_vars + [nu for nu in nus]
+    Q_vars = Q_vars + lambdas
+    Q_vars = Q_vars + [nu for nu in nus]
+
+    diag_lambda = sp.diag(*lambdas)
+
+    Q11 = -2 * alpha * beta * (diag_lambda + T)
+    Q12 = (alpha + beta) * (diag_lambda + T)
+    Q13 = -1 * beta * nus - alpha * etas
+    Q22 = -2 * (diag_lambda + T)
+    Q23 = nus + etas
+    Q33 = sp.zeros(1,1)
+
+    Q = sp.BlockMatrix([
+        [Q11,   Q12,   Q13],
+        [Q12.T, Q22,   Q23],
+        [Q13.T, Q23.T, Q33],
+    ])
+    assert(sp.Matrix(Q).is_symmetric())
+    return Q
+
+
 def symbolic_relaxation_for_hypercube(x, epsilon):
     n = x.shape[0]
     x_floor = x - epsilon * np.ones((n,1))
@@ -231,6 +298,26 @@ def _relaxation_for_hypercube(x, epsilon, constraints=[]):
         [(x_floor + x_ceil).T @ Gamma, -2 * x_floor.T @ Gamma @ x_ceil]
     ])
     return P, constraints
+
+
+def symbolic_relaxation_for_half_space(c, d, dim_x):
+    # for half space defined by {y : cy < d} (in the output space of NN)
+    # dim_x is the input space dimension of the NN
+    dim_c = c.shape[0]
+    S = np.block([
+        [np.zeros((dim_x, dim_x)), np.zeros((dim_x, dim_c)), np.zeros((dim_x,1))],
+        [np.zeros((dim_c, dim_x)), np.zeros((dim_c, dim_c)), c],
+        [np.zeros((1, dim_x)),     c.T,                      -2*np.array([[d]])]
+    ])
+    return S
+    # sympy likely not needed but the following does work
+    c = sp.Matrix([c])
+    S = sp.BlockMatrix([
+        [sp.zeros(dim_x, dim_x), sp.zeros(dim_x, dim_c), sp.zeros(dim_x,1)],
+        [sp.zeros(dim_c, dim_x), sp.zeros(dim_c, dim_c), c.T],
+        [sp.zeros(1, dim_x),     c,                      -2*sp.Matrix([[d]])]
+    ])
+    return S
 
 
 def _relaxation_for_half_space(c, d, dim_x):
