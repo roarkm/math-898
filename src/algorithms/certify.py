@@ -4,6 +4,7 @@ import torch.nn as nn
 import cvxpy as cp
 import numpy as np
 import sympy as sp
+from sympy import BlockDiagMatrix
 from scipy.linalg import block_diag
 from src.models.multi_layer import MultiLayerNN
 from src.algorithms.abstract_verifier import AbstractVerifier
@@ -39,10 +40,10 @@ class Certify(AbstractVerifier):
         # sp.pprint(S)
 
         M_in_P = symbolic_build_M_in(P, self.nn_weights, self.nn_bias_vecs)
-        sp.pprint(M_in_P)
+        # sp.pprint(M_in_P)
+        M_mid_Q = symbolic_build_M_mid(Q=Q, weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
+        # sp.pprint(M_mid_Q)
         exit()
-        # M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
-                                           # weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
         # M_out_S = build_M_out(S, self.nn_weights, self.nn_bias_vecs)
 
         # X = M_in_P + M_mid_Q + M_out_S
@@ -195,6 +196,30 @@ def _build_Q_for_relu(dim, constraints=[]):
         [Q13.T, Q23.T, Q33],
     ])
     return Q, constraints
+
+
+def symbolic_build_M_mid(Q, weights, bias_vecs):
+    assert len(weights) == len(bias_vecs)
+
+    _m = sum([w.shape[0] for w in weights[:-1]])
+
+    sp_weights = [sp.Matrix(w) for w in weights]
+    A = sp.BlockMatrix([
+        [BlockDiagMatrix(*sp_weights[0:-1]), sp.zeros(_m,weights[-1].shape[1])]
+    ])
+    _m = sum([w.shape[0] for w in weights[1:]])
+    B = sp.BlockMatrix([
+        [sp.zeros(_m, weights[0].shape[1]), BlockDiagMatrix(*[sp.eye(w.shape[1]) for w in weights[1:]])]
+    ])
+    bias_concat = np.array([np.concatenate(bias_vecs[:-1])]).T
+    _mid_ = sp.BlockMatrix([
+        [A,                        sp.Matrix(bias_concat)],
+        [B,                       sp.zeros(B.shape[0], 1)],
+        [sp.zeros(1, B.shape[1]),             sp.eye(1,1)]
+    ])
+
+    M_mid_Q = _mid_.T @ Q @ _mid_
+    return M_mid_Q
 
 
 def build_M_mid(Q, constraints, weights, bias_vecs, activ_func='relu'):
