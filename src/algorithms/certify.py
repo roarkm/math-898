@@ -43,10 +43,10 @@ class Certify(AbstractVerifier):
         # sp.pprint(M_in_P)
         M_mid_Q = symbolic_build_M_mid(Q=Q, weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
         # sp.pprint(M_mid_Q)
-        exit()
-        # M_out_S = build_M_out(S, self.nn_weights, self.nn_bias_vecs)
-
-        # X = M_in_P + M_mid_Q + M_out_S
+        M_out_S = symbolic_build_M_out(S, self.nn_weights, self.nn_bias_vecs)
+        # sp.pprint(M_out_S)
+        X = M_in_P + M_mid_Q + M_out_S
+        # sp.pprint(X)
 
     def verifiy_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
 
@@ -108,6 +108,7 @@ class Certify(AbstractVerifier):
             print(debug)
         return verified
 
+
 def build_M_out(S, weights, bias_vecs):
     # S is specified by caller and quadratically overapproximates
     # the safety set in the graph of f.
@@ -120,6 +121,30 @@ def build_M_out(S, weights, bias_vecs):
         [np.zeros((1, E0.shape[1])), np.eye(1)]
     ])
     return _out_.T @ S @ _out_
+
+
+def symbolic_build_M_out(S, weights, bias_vecs):
+    # S is specified by caller and quadratically overapproximates
+    # the safety set in the graph of f.
+    # There are no free variables in the returned matrix.
+    E0 = sp.Matrix(_build_E(weights, 0))
+    El = sp.Matrix(_build_E(weights, len(weights)-1))
+    _E0 = sp.MatrixSymbol('E0', E0.shape[0], E0.shape[1])
+    _El = sp.MatrixSymbol('El', El.shape[0], El.shape[1])
+    _S = sp.MatrixSymbol('S', S.shape[0], S.shape[1])
+    __bv = np.array([bias_vecs[-1]]).T
+    bv = sp.Matrix(np.array([bias_vecs[-1]]).T)
+    _bv = sp.MatrixSymbol('bv', __bv.shape[0], __bv.shape[1])
+    _out_ = sp.BlockMatrix([
+        [_E0,                           sp.zeros(E0.shape[0], 1)],
+        [sp.Matrix(weights[-1]) @ _El,                       _bv],
+        [sp.zeros(1, E0.shape[1]),                     sp.eye(1)]
+    ])
+    M_out = sp.MatMul(_out_.T @ _S @ _out_)
+    # sp.pprint(M_out)
+    # vals={_E0: E0, _El: El, _bv: bv, _S:  S}
+    # sp.pprint(M_out.subs(vals).as_explicit())
+    return M_out
 
 
 def symbolic_build_M_in(P, weights, bias_vecs):
