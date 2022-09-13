@@ -22,7 +22,45 @@ class AbstractVerifier():
                 bias_vecs.append(l.bias.data.numpy())
             else:
                 assert isinstance(l, nn.modules.activation.ReLU)
+        assert len(weights) >= 2, "Only supporting more than two layers"
         return weights, bias_vecs
+
+
+    def sep_hplane_for_advclass(self, x, complement=False):
+        fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()
+        class_order = np.argsort(fx)[0]
+        # index of component with largest value
+        x_class = class_order[-1]
+        # index of component with second largest value
+        adversarial_class = class_order[-2]
+
+        c = self._vector_for_separating_hyperplane(large_index=x_class,
+                                                   small_index=adversarial_class,
+                                                   n=fx.shape[1])
+        if complement:
+            return -1 * c
+        return c
+
+
+    def _vector_for_separating_hyperplane(self, large_index, small_index, n):
+        # create vector c for a seperating hyperplane
+        #    {x | c dot x >= 0 and x,c in R^n}
+        c = np.zeros((1, n))
+        c[0][large_index] = 1
+        c[0][small_index] = -1
+        return c.T
+
+
+    def constraints_for_separating_hyperplane(self, opt_vars, large_index, small_index,
+                                              verbose=False, complement=False):
+        # create constraint for a seperating hyperplane in R^n
+        # where n = dim(opt_vars)
+        c = self._vector_for_separating_hyperplane(large_index,
+                                                   small_index,
+                                                   opt_vars.shape[0])
+        if complement:
+            return [c @ opt_vars <= 0]
+        return [c @ opt_vars >= 0]
 
 
     def constraints_for_k_class_polytope(self, k, x, verbose=False, complement=False):

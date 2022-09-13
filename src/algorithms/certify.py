@@ -30,17 +30,13 @@ class Certify(AbstractVerifier):
         x = np.array(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         x_class = np.argmax(im_x)
+        x_class = np.argmax(im_x)
 
-        # TODO: make this work for higher dimensions (multiclass classifier)
-        assert len(im_x) == 2, "Currently only supporting halfspace safety sets"
         d = 0
-        c = np.array([[-1], [1]]) # defines halfspace where y1 > y2
-        if x_class == 1:
-            c = -1 * c # defines halfspace where y2 > y1
+        c = self.sep_hplane_for_advclass(x, complement=True)
 
         P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
-        # TODO: verify what the shape of Q should actually be
-        dim = sum([w.shape[0] for w in self.nn_weights[:-1]]) # not sure this is correct
+        dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
         Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
         S = _relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
 
@@ -250,7 +246,10 @@ if __name__ == '__main__':
     ]
     f = MultiLayerNN(weights, bias_vecs)
     cert = Certify(f)
-    x = [[9], [0]]
     eps = 0.5
-    is_robust = cert.verifiy_at_point(x=x, eps=eps, verbose=True)
+    x = [[9], [0]]
+    is_robust = cert.verifiy_at_point(x=x, eps=eps)
+    print(f"Identity is {eps}-robust at {x}? {is_robust}")
+    x = [[0], [9]]
+    is_robust = cert.verifiy_at_point(x=x, eps=eps)
     print(f"Identity is {eps}-robust at {x}? {is_robust}")
