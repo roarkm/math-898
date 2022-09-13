@@ -3,10 +3,7 @@ import torch
 import torch.nn as nn
 import cvxpy as cp
 import numpy as np
-# import seaborn
-# from matplotlib import pyplot as plt
-# import pylab as pyl
-# from mpl_toolkits.mplot3d import Axes3D
+import sympy as sp
 from scipy.linalg import block_diag
 from src.models.multi_layer import MultiLayerNN
 from src.algorithms.abstract_verifier import AbstractVerifier
@@ -25,11 +22,32 @@ class Certify(AbstractVerifier):
         return s
 
 
+    def build_symbolic_matrices(self, x=None, eps=1):
+        x = np.array(x)
+        im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
+        x_class = np.argmax(im_x)
+
+        d = 0
+        c = self.sep_hplane_for_advclass(x, complement=True)
+
+        P = symbolic_relaxation_for_hypercube(x=x, epsilon=eps)
+        sp.pprint(P)
+        exit()
+        # dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
+        # Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
+        # S = _relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
+
+        # M_in_P = build_M_in(P, self.nn_weights, self.nn_bias_vecs)
+        # M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
+                                           # weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
+        # M_out_S = build_M_out(S, self.nn_weights, self.nn_bias_vecs)
+
+        # X = M_in_P + M_mid_Q + M_out_S
+
     def verifiy_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
 
         x = np.array(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
-        x_class = np.argmax(im_x)
         x_class = np.argmax(im_x)
 
         d = 0
@@ -185,6 +203,21 @@ def build_M_mid(Q, constraints, weights, bias_vecs, activ_func='relu'):
     return M_mid_Q, constraints
 
 
+def symbolic_relaxation_for_hypercube(x, epsilon):
+    n = x.shape[0]
+    x_floor = x - epsilon * np.ones((n,1))
+    x_ceil =  x + epsilon * np.ones((n,1))
+
+    _g = ' '.join([f"g{i}" for i in range(1, n+1)])
+    g = sp.var(_g)
+    Gamma = sp.diag(*g)
+    P = sp.Matrix([
+        [-2 * Gamma,                        Gamma @ (x_floor + x_ceil)],
+        [(x_floor + x_ceil).T @ Gamma, -2 * x_floor.T @ Gamma @ x_ceil]
+    ])
+    return P
+
+
 def _relaxation_for_hypercube(x, epsilon, constraints=[]):
     n = x.shape[0]
     x_floor = x - epsilon * np.ones((n,1))
@@ -248,8 +281,10 @@ if __name__ == '__main__':
     cert = Certify(f)
     eps = 0.5
     x = [[9], [0]]
-    is_robust = cert.verifiy_at_point(x=x, eps=eps)
-    print(f"Identity is {eps}-robust at {x}? {is_robust}")
-    x = [[0], [9]]
-    is_robust = cert.verifiy_at_point(x=x, eps=eps)
-    print(f"Identity is {eps}-robust at {x}? {is_robust}")
+    cert.build_symbolic_matrices(x=x, eps=eps)
+    exit()
+    # is_robust = cert.verifiy_at_point(x=x, eps=eps)
+    # print(f"Identity is {eps}-robust at {x}? {is_robust}")
+    # x = [[0], [9]]
+    # is_robust = cert.verifiy_at_point(x=x, eps=eps)
+    # print(f"Identity is {eps}-robust at {x}? {is_robust}")
