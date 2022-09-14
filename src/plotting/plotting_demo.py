@@ -1,32 +1,43 @@
 from src.models.multi_layer import MultiLayerNN
-from src.algorithms.certify import Certify
+from src.algorithms.certify import Certify, symbolic_relaxation_for_hypercube
+from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import numpy as np
-
-
-def do_certify():
-    weights = [
-        [[1, 0],
-         [0, 1]],
-        [[1, 0],
-         [0, 1]],
-    ]
-    bias_vecs =[
-        (0,0),
-        (0,0),
-    ]
-    f = MultiLayerNN(weights, bias_vecs)
-    cert = Certify(f)
-    x = [[9], [0]]
-    eps = 0.5
-    is_robust = cert.verifiy_at_point(x=x, eps=eps, verbose=True)
-    print(f"Identity is {eps}-robust at {x}? {is_robust}")
+import pylab as pyl
+import math
 
 
 def plot_quadratic_form(matrix):
     # plot a symetric matrix as an elipse
-    # if two
+    # for a symetric matrix
+    # [[a, b],
+      # b, c]]
     matrix = np.array(matrix)
+    # assert matrix.shape == (2,2)
+    assert matrix[0,1] == matrix[1, 0]
+    matrix = np.array(matrix)
+    a = matrix[0,0]
+    b = matrix[0,1]
+    c = matrix[1,1]
+    lambda1 = (a + c)/2 + math.sqrt( (a-c)**2/4 + b**2 )
+    lambda2 = (a + c)/2 - math.sqrt( (a-c)**2/4 + b**2 )
+    if b==0 and a >= c:
+        theta = 0
+    elif b==0 and a < c:
+        theta = math.pi / 2
+    else:
+        theta = math.atan2( (lambda1 - a), b )
+    fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
+    # e = Ellipse((0,0), lambda1, lambda2, theta, alpha=0.4)
+    print(f"{lambda1}, {lambda2}, {theta}")
+    e = Ellipse((0,0), lambda1, lambda2, theta)
+    ax.add_artist(e)
+    x = max(lambda1, lambda2)
+    ax.set_xlim(-x, x)
+    ax.set_ylim(-x, x)
+    plt.show()
+
+
     print(matrix)
 
 def test_plot():
@@ -39,53 +50,64 @@ def test_plot():
     plt.show()
 
 
-def make_quadratic(M):
+def make_quadratic(P):
     # returns a function that computes the quadratic invoked by P
-    def M_quad(x,y):
-        _M = np.array(M.value)
+    def M_quad(x1, x2):
+        _P = np.array(P)
         # assert len(x)+1 == _M.shape[1]
-        _x = np.vstack(np.concatenate([[x], [y], np.array([1])]))
-        z =  _x.T @ _M @ _x
-        # print(z[0][0])
-        # print((z+1)[0][0]
-        # z =  z + 1
-        # z =  np.maximum(0, _x.T @ _M @ _x + 8)
-        return z
+        _x = np.vstack(np.concatenate([[x1], [x2], np.array([1])]))
+        z =  _x.T @ _P @ _x
+        if z >= 0:
+            return 1
+        return 0
     return np.vectorize(M_quad)
-    # return M_quad
 
 
-def print_P(P, ref_point, eps):
+def print_P(P, x=None, eps=None):
+    # tl = x + np.array([[-eps], [eps]])
+    # tr = x + np.array([[eps], [eps]])
+    # br = x + np.array([[eps], [-eps]])
+    # bl = x + np.array([[-eps], [-eps]])
+    # x1, x2 = zip(*[tl, tr, bl, br])
+    # print(x1)
+    # print(x2)
+    # plt.figure(figsize=(8, 8))
+    # plt.axis('equal')
+    # plt.fill(x1, x2)
 
     p = make_quadratic(P)
-    grid_size = 50
+    grid_size = 500
     _x, _y = np.linspace(-10,10,grid_size), np.linspace(-10,10,grid_size)
     x, y  = np.meshgrid(_x, _y)
     z = p(x,y)
 
     im = pyl.imshow(z,cmap=pyl.cm.RdBu) # drawing the function
-    cset = pyl.contour(z, np.arange(z.min(), z.max(), (z.max() - z.min())/10),
-                       linewidths=2, cmap=pyl.cm.Set2) # adding the Contour lines with labels
-    pyl.clabel(cset, inline=True, fmt='%1.1f',fontsize=10)
-    pyl.colorbar(im) # adding the colobar on the right
-    # latex fashion title
     pyl.show()
 
-    # h = plt.contourf(x, y, z)
-    # plt.axis('scaled')
-    # plt.colorbar()
-    # plt.show()
-
-    # fig = plt.figure(figsize = (10,7))
-    # ax = plt.axes(projection='3d')
-    # ax.plot_surface(x, y, z, rstride=5, cstride=5, cmap='cool')
-    # ax.set_title("Surface Bonus", fontsize = 13)
-    # ax.set_xlabel('x', fontsize = 11)
-    # ax.set_ylabel('y', fontsize = 11)
-    # ax.set_zlabel('Z', fontsize = 11)
-    # plt.show()
 
 if __name__ == '__main__':
-    m = [[1, 2],
-         [2, 3]]
-    plot_quadratic_form(m)
+    weights = [
+        [[1, 0],
+         [0, 1]],
+        [[1, 0],
+         [0, 1]],
+    ]
+    bias_vecs =[
+        (0,0),
+        (0,0),
+    ]
+    f = MultiLayerNN(weights, bias_vecs)
+    cert = Certify(f)
+    eps = 0.5
+    x = [[9], [0]]
+    is_robust = cert.verifiy_at_point(x=x, eps=eps)
+    if is_robust:
+        P = cert.P
+        print(P)
+        print_P(P, x, eps)
+        # plot_quadratic_form(P)
+
+    # m = [[1, 3, 0],
+         # [3, 2, 0],
+         # [0, 0, 1]]
+    # exit()
