@@ -61,7 +61,9 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         _im_x = np.matrix(x)
         fx = self.f(torch.tensor(_im_x).T.float()).detach().numpy()
-        x_class = np.argmax(fx)
+        class_order = np.argsort(fx)[0]
+        x_class = class_order[-1] # index of component with largest value
+        adversarial_class = class_order[-2] # index of component with second largest value
 
         # optimization var list starting with x0
         # x0 is unconstrained since we are using inf-ball in objective function
@@ -110,7 +112,11 @@ class IteratedLinearVerifier(AbstractVerifier):
                 # constraint (xi == xi_hat OR xi == 0)
                 self.constraints += [xi_list[-1] == beta @ xi_hat]
 
-        self.constraints += self.constraints_for_k_class_polytope(k=x_class, x=x, compliment=True)
+        # Add constraints for safety set
+        # Want the complement of the k-class-polytope
+        # Actually, only consider seperating the predicted class of x and the next highest component
+        zn = cp.bmat([cp.Variable(len(x), name='zn')]).T
+        self.constraints = self.constraints_for_seperating_hyperplane(zn, x_class, adversarial_class, complement=True)
 
         obj = cp.Minimize(cp.atoms.norm_inf(np.matrix(x) - xi_list[0]))
         problem = cp.Problem(obj, self.constraints)

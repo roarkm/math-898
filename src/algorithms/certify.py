@@ -93,6 +93,9 @@ class Certify(AbstractVerifier):
         if status == cp.OPTIMAL:
             debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
+            self.P = P.value
+            self.Q = Q.value
+            self.S = S
         elif status == cp.OPTIMAL_INACCURATE:
             debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
@@ -434,10 +437,11 @@ if __name__ == '__main__':
     cert = Certify(f)
     eps = 0.5
     x = [[9], [0]]
-    cert.build_symbolic_matrices(x=x, eps=eps)
-    exit()
-    # is_robust = cert.verifiy_at_point(x=x, eps=eps)
-    # print(f"Identity is {eps}-robust at {x}? {is_robust}")
+    # cert.build_symbolic_matrices(x=x, eps=eps)
+    # exit()
+    is_robust = cert.verifiy_at_point(x=x, eps=eps, verbose=True)
+    print(f"Identity is {eps}-robust at {x}? {is_robust}")
+    # print(cert.P)
     # x = [[0], [9]]
     # is_robust = cert.verifiy_at_point(x=x, eps=eps)
     # print(f"Identity is {eps}-robust at {x}? {is_robust}")
