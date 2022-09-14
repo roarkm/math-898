@@ -26,20 +26,16 @@ class AbstractVerifier():
         return weights, bias_vecs
 
 
-    def sep_hplane_for_advclass(self, x, complement=False):
+    def sep_hplane_for_advclass(self, x):
         fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()
         class_order = np.argsort(fx)[0]
         # index of component with largest value
         x_class = class_order[-1]
         # index of component with second largest value
         adversarial_class = class_order[-2]
-
-        c = self._vector_for_separating_hyperplane(large_index=x_class,
-                                                   small_index=adversarial_class,
-                                                   n=fx.shape[1])
-        if complement:
-            return -1 * c
-        return c
+        return self._vector_for_separating_hyperplane(large_index=x_class,
+                                                      small_index=adversarial_class,
+                                                      n=fx.shape[1])
 
 
     def _vector_for_separating_hyperplane(self, large_index, small_index, n):
