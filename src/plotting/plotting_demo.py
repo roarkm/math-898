@@ -1,53 +1,9 @@
 from src.models.multi_layer import MultiLayerNN
 from src.algorithms.certify import Certify, symbolic_relaxation_for_hypercube
 from matplotlib.patches import Ellipse
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import numpy as np
-import pylab as pyl
-import math
-
-
-def plot_quadratic_form(matrix):
-    # plot a symetric matrix as an elipse
-    # for a symetric matrix
-    # [[a, b],
-      # b, c]]
-    matrix = np.array(matrix)
-    # assert matrix.shape == (2,2)
-    assert matrix[0,1] == matrix[1, 0]
-    matrix = np.array(matrix)
-    a = matrix[0,0]
-    b = matrix[0,1]
-    c = matrix[1,1]
-    lambda1 = (a + c)/2 + math.sqrt( (a-c)**2/4 + b**2 )
-    lambda2 = (a + c)/2 - math.sqrt( (a-c)**2/4 + b**2 )
-    if b==0 and a >= c:
-        theta = 0
-    elif b==0 and a < c:
-        theta = math.pi / 2
-    else:
-        theta = math.atan2( (lambda1 - a), b )
-    fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
-    # e = Ellipse((0,0), lambda1, lambda2, theta, alpha=0.4)
-    print(f"{lambda1}, {lambda2}, {theta}")
-    e = Ellipse((0,0), lambda1, lambda2, theta)
-    ax.add_artist(e)
-    x = max(lambda1, lambda2)
-    ax.set_xlim(-x, x)
-    ax.set_ylim(-x, x)
-    plt.show()
-
-
-    print(matrix)
-
-def test_plot():
-    x = [0,1,0]
-    y = [0,0,1]
-
-    plt.figure(figsize=(4,4))
-    plt.axis('equal')
-    plt.fill(x,y)
-    plt.show()
 
 
 def make_quadratic(P):
@@ -64,25 +20,30 @@ def make_quadratic(P):
 
 
 def print_P(P, x=None, eps=None):
+    # TODO: plot inf-ball around x
     # tl = x + np.array([[-eps], [eps]])
     # tr = x + np.array([[eps], [eps]])
     # br = x + np.array([[eps], [-eps]])
     # bl = x + np.array([[-eps], [-eps]])
-    # x1, x2 = zip(*[tl, tr, bl, br])
-    # print(x1)
-    # print(x2)
-    # plt.figure(figsize=(8, 8))
-    # plt.axis('equal')
-    # plt.fill(x1, x2)
-
     p = make_quadratic(P)
-    grid_size = 500
-    _x, _y = np.linspace(-10,10,grid_size), np.linspace(-10,10,grid_size)
-    x, y  = np.meshgrid(_x, _y)
-    z = p(x,y)
+    # TODO: detect min, max values of z where z == 1 (use to set plot xlim, ylim)
+    # TODO: set colors, labels
+    # TODO: figure out explicit ellipse formula (and plot elipse instead?)
+    # TODO: plot safety set relaxation too (subplot)
+    # QUESTION: Q matrix encapsulates all middel layers into one big,
+    #           but does each block along the diag correspond to a layer
+    #           relaxation!?
+    grid_size = 100
+    _x1, _x2 = np.arange(6, 12, 0.01), np.arange(-1, 1, 0.01)
+    x1, x2  = np.meshgrid(_x1, _x2)
+    z = p(x1, x2)
+    plt.contourf(x1, x2, z)
+    plt.plot(x[0][0], x[1][0], marker="o", markersize=20) # plot x
+    plt.colorbar()
+    plt.xlabel('x1')
+    plt.ylabel('x2')
+    plt.show()
 
-    im = pyl.imshow(z,cmap=pyl.cm.RdBu) # drawing the function
-    pyl.show()
 
 
 if __name__ == '__main__':
@@ -103,11 +64,52 @@ if __name__ == '__main__':
     is_robust = cert.verifiy_at_point(x=x, eps=eps)
     if is_robust:
         P = cert.P
-        print(P)
-        print_P(P, x, eps)
-        # plot_quadratic_form(P)
+        # print(P)
+        gamma1 = P[0,0] / (-2)
+        gamma2 = P[1,1] / (-2)
+        assert P[2,0] == 18*gamma1
+        assert P[2,2] == -2*(8.5*9.5*gamma1 + -0.5*0.5*gamma2)
+        # print(f"gamma 1: {gamma1}, gamma 2: {gamma2}")
+        _qp = make_quadratic(P)
+        assert _qp(9,0) >= 0
+        assert _qp(8.5,0.5) >= 0
+        assert _qp(9.5,0.5) >= 0
+        assert _qp(9.5,-0.5) >= 0
+        assert _qp(8.5,-0.5) >= 0
 
-    # m = [[1, 3, 0],
-         # [3, 2, 0],
-         # [0, 0, 1]]
-    # exit()
+        print_P(P, x, eps)
+
+# The below code snippet demonstrates voxel based 3d printing
+# https://matplotlib.org/3.4.3/gallery/mplot3d/voxels_rgb.html#sphx-glr-gallery-mplot3d-voxels-rgb-py
+
+# def midpoints(x):
+    # sl = ()
+    # for i in range(x.ndim):
+        # x = (x[sl + np.index_exp[:-1]] + x[sl + np.index_exp[1:]]) / 2.0
+        # sl += np.index_exp[:]
+    # return x
+
+# # prepare some coordinates, and attach rgb values to each
+# r, g, b = np.indices((17, 17, 17)) / 16.0
+# rc = midpoints(r)
+# gc = midpoints(g)
+# bc = midpoints(b)
+
+# # define a sphere about [0.5, 0.5, 0.5]
+# sphere = (rc - 0.5)**2 + (gc - 0.5)**2 + (bc - 0.5)**2 < 0.5**2
+
+# # combine the color components
+# colors = np.zeros(sphere.shape + (3,))
+# colors[..., 0] = rc
+# colors[..., 1] = gc
+# colors[..., 2] = bc
+
+# # and plot everything
+# ax = plt.figure().add_subplot(projection='3d')
+# ax.voxels(r, g, b, sphere,
+          # facecolors=colors,
+          # edgecolors=np.clip(2*colors - 0.5, 0, 1),  # brighter
+          # linewidth=0.5)
+# ax.set(xlabel='r', ylabel='g', zlabel='b')
+
+# plt.show()
