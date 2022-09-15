@@ -94,7 +94,9 @@ class Certify(AbstractVerifier):
             debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
             self.P = P.value
+            # TODO: verify 0-level set of P contains region of interest (test corner points)
             self.Q = Q.value
+            # TODO: verify 0-level set of S contains safety set (how to test for halfspace?)
             self.S = S
         elif status == cp.OPTIMAL_INACCURATE:
             debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
