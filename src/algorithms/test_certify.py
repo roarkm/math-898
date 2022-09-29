@@ -27,7 +27,7 @@ class TestCertify(unittest.TestCase):
             # SCS hangs for eps >= 4
             cert = Certify(f)
             epsilon=n + 0.3
-            self.assertTrue(cert.verifiy_at_point(x=x, eps=epsilon),
+            self.assertTrue(cert.verify_at_point(x=x, eps=epsilon),
                             f"Identity f should be {epsilon}-robust at {x}.")
             del cert
 
@@ -36,7 +36,7 @@ class TestCertify(unittest.TestCase):
         for n in range(5):
             cert = Certify(f)
             epsilon = 2**(-n)
-            self.assertFalse(cert.verifiy_at_point(x=x, eps=epsilon),
+            self.assertFalse(cert.verify_at_point(x=x, eps=epsilon),
                              f"Identity f should never be {epsilon}-robust at {x} (on the decision boundary).")
 
 

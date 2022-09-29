@@ -61,7 +61,7 @@ class Certify(AbstractVerifier):
         sp.pprint(X)
 
 
-    def verifiy_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
+    def verify_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
         x = np.array(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         x_class = np.argmax(im_x)
@@ -441,9 +441,9 @@ if __name__ == '__main__':
     x = [[9], [0]]
     # cert.build_symbolic_matrices(x=x, eps=eps)
     # exit()
-    is_robust = cert.verifiy_at_point(x=x, eps=eps, verbose=True)
+    is_robust = cert.verify_at_point(x=x, eps=eps, verbose=True)
     print(f"Identity is {eps}-robust at {x}? {is_robust}")
     # print(cert.P)
     # x = [[0], [9]]
-    # is_robust = cert.verifiy_at_point(x=x, eps=eps)
+    # is_robust = cert.verify_at_point(x=x, eps=eps)
     # print(f"Identity is {eps}-robust at {x}? {is_robust}")
