@@ -1,7 +1,7 @@
+import cvxpy as cp
 import numpy as np
 import torch
 import torch.nn as nn
-import cvxpy as cp
 
 class AbstractVerifier():
 
@@ -54,9 +54,12 @@ class AbstractVerifier():
                                               verbose=False, complement=False):
         # create constraint for a seperating hyperplane in R^n
         # where n = dim(opt_vars)
+        assert large_index <= opt_vars.shape[1]
+        assert small_index <= opt_vars.shape[1]
+
         c = self._vector_for_separating_hyperplane(large_index,
                                                    small_index,
-                                                   opt_vars.shape[0])
+                                                   opt_vars.shape[1])
         if complement:
             return [c @ opt_vars <= 0]
         return [c @ opt_vars >= 0]
@@ -86,9 +89,6 @@ class AbstractVerifier():
             print(f"Polytope for {len(x)}-class classifier. k={k}.")
             print(A)
             print(b)
-
-        # if complement:
-            # return [A @ z <= b] # eh, is this even correct? (NO)
         return [A @ z >= b]
 
 
@@ -100,4 +100,3 @@ class AbstractVerifier():
             s += f"f:R^{self.nn_weights[0].shape[1]} -> R^{self.nn_weights[-1].shape[0]}"
             s += f"\t{len(self.nn_weights)} layers"
         return s
-

@@ -60,76 +60,80 @@ class IteratedLinearVerifier(AbstractVerifier):
         assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
         _im_x = np.matrix(x)
-        fx = self.f(torch.tensor(_im_x).T.float()).detach().numpy()
-        class_order = np.argsort(fx)[0]
-        x_class = class_order[-1] # index of component with largest value
-        adversarial_class = class_order[-2] # index of component with second largest value
-
-        # optimization var list starting with x0
-        # x0 is unconstrained since we are using inf-ball in objective function
-        xi_list = [cp.bmat([cp.Variable(len(x), name='x0')]).T]
+        # z0 is unconstrained since we are using inf-ball in objective function
+        # optimization var list starting with z0
+        zi_list = [cp.Variable(_im_x.shape, name='z0')]
 
         # propogate x layer by layer through f
         # 1) add constraints for affine transforms
         # 2) add constraints for ReLU activation pattern
         for i in range(0, len(self.nn_weights)):
-            Wi = np.matrix(self.nn_weights[i])
-            bi = np.matrix(self.nn_bias_vecs[i]).T
+            Wi = self.nn_weights[i]
+            _bi = self.nn_bias_vecs[i]
+            bi = np.reshape(_bi, (_bi.shape[0], 1))
 
             # add constraint for affine transformation
-            xi_list.append(cp.bmat([cp.Variable(Wi.shape[0], f"x{i}_hat")]).T)
-            xi_hat = Wi @ xi_list[-2] + bi
-            self.constraints += [xi_list[-1] == xi_hat]
+            zi_list.append(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat"))
+            # zi_hat = Wi @ zi_list[-2] + bi
+            self.constraints += [zi_list[-1] == Wi @ zi_list[-2] + bi]
 
             # add constraints for ReLU activation pattern
-            xi_list.append(cp.bmat([cp.Variable(Wi.shape[0], f"x{i}")]).T)
+            zi_list.append(cp.Variable((Wi.shape[0],1), f"z{i}"))
             # propogate reference point
             _im_x = Wi * _im_x + bi
 
             # for all but the last layer (last layer has no ReLU)
             if i < len(self.nn_weights):
-                # build indicator vector to encode inequality constraint on xi_hat as dot product
+                # build indicator vector to encode inequality constraint on zi_hat as dot product
                 delta = np.zeros((1, len(_im_x)))
                 beta  = np.zeros((1, len(_im_x)))
                 for j, _im_x_j in enumerate(_im_x):
                     if _im_x_j[0,0] >= 0:
-                        # xi_hat[j] >= 0 iff (1 * xi_hat[j] >= 0)
+                        # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
                         delta[0,j] = 1
-                        # constraint xi == xi_hat
+                        # constraint zi == zi_hat
                         beta[0,j] = 1
                     else:
-                        # xi_hat[j] < 0 iff (-1 * xi_hat[j] > 0)
+                        # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
                         delta[0,j] = -1
-                        # constraint xi == 0
+                        # constraint zi == 0
                         beta[0,j] = 0
+
+                # constraint (zi_hat >= 0 OR zi_hat < 0)
+                self.constraints += [delta @ zi_list[-2] >= 0]
+
+                # constraint (xi == zi_hat OR xi == 0)
+                self.constraints += [zi_list[-1] == beta @ zi_list[-2]]
 
                 # continue propogating reference point through f
                 _im_x = np.matrix(self.relu(torch.tensor(_im_x)))
 
-                # constraint (xi_hat >= 0 OR xi_hat < 0)
-                self.constraints += [delta @ xi_hat >= 0]
-
-                # constraint (xi == xi_hat OR xi == 0)
-                self.constraints += [xi_list[-1] == beta @ xi_hat]
 
         # Add constraints for safety set
-        # Want the complement of the k-class-polytope
-        # Actually, only consider seperating the predicted class of x and the next highest component
-        zn = cp.bmat([cp.Variable(len(x), name='zn')]).T
-        self.constraints = self.constraints_for_seperating_hyperplane(zn, x_class, adversarial_class, complement=True)
+        # Only consider seperating hyperplane for the predicted class of x
+        # and the next highest component
+        fx = self.f(torch.tensor(_im_x).T.float()).detach().numpy()
+        class_order = np.argsort(fx)[0]
 
-        obj = cp.Minimize(cp.atoms.norm_inf(np.matrix(x) - xi_list[0]))
+        x_class = class_order[-1] # index of component with largest value
+        adversarial_class = class_order[-2] # index of component with second largest value
+
+        zn = cp.Variable(fx.shape, name='zn')
+        self.constraints += self.constraints_for_separating_hyperplane(zn, x_class, adversarial_class,
+                                                                      complement=True)
+
+        obj = cp.Minimize(cp.atoms.norm_inf(np.matrix(x) - zi_list[0]))
         problem = cp.Problem(obj, self.constraints)
         problem.solve()
 
         print(f"f({x}) = {fx} |--> class: {x_class}")
         status = problem.status
         if status == cp.OPTIMAL:
-            # TODO: double check whether we need compliment of safety set
-            print(f"SUCCESS: ")
-            # TODO: compare optimal value to epsilon
-            #       if bigger, then we have verified?
-            print(f"Opt value = {problem.value}")
+            if problem.value >= eps:
+                print(f"Opt val: {problem.value} >= {eps}.")
+                return True
+            print(f"Opt val: {problem.value} < {eps}.")
+            return False
         elif status == cp.INFEASIBLE:
             # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
             print(f"COULD NOT verify")
@@ -151,10 +155,10 @@ class IteratedLinearVerifier(AbstractVerifier):
 if __name__ == '__main__':
 
     weights = [
-        [[-1, 0],
+        [[1, 0],
          [0, 1]],
         [[2, 0],
-         [0, -2]],
+         [0, 2]],
         # [[3, 0],
          # [0, 3]]
     ]
