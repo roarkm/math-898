@@ -8,9 +8,20 @@ class AbstractVerifier():
 
     def __init__(self, f=None):
         self.f = f
+        self.constraints = []
         self.relu = nn.ReLU()
         if f:
             self.nn_weights, self.nn_bias_vecs = weights_from_nn(self.f)
+
+
+    def str_constraints(self):
+        if len(self.constraints) == 0:
+            return "No Constraints."
+        s = ""
+        for c in self.constraints:
+            s += f"\nconstraint:"
+            s += str(c)
+        return s
 
 
     def __str__(self):
