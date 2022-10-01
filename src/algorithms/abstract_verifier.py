@@ -30,21 +30,10 @@ class AbstractVerifier():
         x_class = class_order[-1]
         # index of component with second largest value
         adversarial_class = class_order[-2]
-        return self._vector_for_separating_hyperplane(large_index=x_class,
-                                                      small_index=adversarial_class,
-                                                      n=fx.shape[1],
-                                                      complement=complement)
-
-
-    def _vector_for_separating_hyperplane(self, large_index, small_index, n, complement=False):
-        # create vector c for a seperating hyperplane
-        #    {x | c dot x >= 0 and x,c in R^n}
-        c = np.zeros((1, n))
-        c[0][large_index] = 1
-        c[0][small_index] = -1
-        if complement:
-            return -1 * c.T
-        return c.T
+        return _vector_for_separating_hyperplane(large_index=x_class,
+                                                 small_index=adversarial_class,
+                                                 n=fx.shape[1],
+                                                 complement=complement)
 
 
     def constraints_for_separating_hyperplane(self, opt_vars, large_index, small_index,
@@ -54,9 +43,7 @@ class AbstractVerifier():
         assert large_index <= opt_vars.shape[1]
         assert small_index <= opt_vars.shape[1]
 
-        c = self._vector_for_separating_hyperplane(large_index,
-                                                   small_index,
-                                                   opt_vars.shape[1])
+        c = _vector_for_separating_hyperplane(large_index, small_index, opt_vars.shape[1])
         if complement:
             return [c @ opt_vars <= 0]
         return [c @ opt_vars >= 0]
@@ -105,5 +92,16 @@ def weights_from_nn(f):
             assert isinstance(l, nn.modules.activation.ReLU)
     assert len(weights) >= 2, "Only supporting more than two layers"
     return weights, bias_vecs
+
+
+def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
+    # create vector c for a seperating hyperplane
+    #    {x | c dot x >= 0 and x,c in R^n}
+    c = np.zeros((1, n))
+    c[0][large_index] = 1
+    c[0][small_index] = -1
+    if complement:
+        return -1 * c.T
+    return c.T
 
 
