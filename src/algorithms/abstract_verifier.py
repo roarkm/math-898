@@ -36,17 +36,17 @@ class AbstractVerifier():
                                                  complement=complement)
 
 
-    def constraints_for_separating_hyperplane(self, opt_vars, large_index, small_index,
-                                              verbose=False, complement=False):
-        # create constraint for a seperating hyperplane in R^n
-        # where n = dim(opt_vars)
-        assert large_index <= opt_vars.shape[1]
-        assert small_index <= opt_vars.shape[1]
+def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
+                                          verbose=False, complement=False):
+    # create constraint for a seperating hyperplane in R^n
+    # where n = dim(opt_vars)
+    assert large_index <= opt_vars.shape[1]
+    assert small_index <= opt_vars.shape[1]
 
-        c = _vector_for_separating_hyperplane(large_index, small_index, opt_vars.shape[1])
-        if complement:
-            return [c @ opt_vars <= 0]
-        return [c @ opt_vars >= 0]
+    c = _vector_for_separating_hyperplane(large_index, small_index, opt_vars.shape[1])
+    if complement:
+        return [c @ opt_vars <= 0]
+    return [c @ opt_vars >= 0]
 
 
 def constraints_for_k_class_polytope(k, x, verbose=False, complement=False):

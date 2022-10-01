@@ -4,8 +4,7 @@ import torch.nn as nn
 import cvxpy as cp
 # from pulp import LpMaximize, LpProblem, LpStatus, lpSum, LpVariable
 from src.models.multi_layer import MultiLayerNN
-from src.algorithms.abstract_verifier import AbstractVerifier
-
+from src.algorithms.abstract_verifier import AbstractVerifier, constraints_for_separating_hyperplane
 
 class IteratedLinearVerifier(AbstractVerifier):
 
