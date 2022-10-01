@@ -26,32 +26,28 @@ class MultiLayerNN(nn.Module):
 
 
     def verify_weight_dims(self, weights, bias_vecs):
+
         assert len(weights) == len(bias_vecs)
-        for i in range(0, len(weights)):
-            _out_dim = weights[i].shape[0]
+        for i, (w, b) in enumerate(zip(weights, bias_vecs)):
+            assert w.shape[0] == b.shape[0]
             if i < len(weights) - 1:
-                assert _out_dim == len(bias_vecs[i+1])
+                # not the last layer
+                assert b.shape[0] == weights[i+1].shape[1]
             if i > 0:
-                assert weights[i].shape[1] == weights[i-1].shape[0]
-        return None
-
-
-    def list_to_np(self, lmats):
-        _m = []
-        for m in lmats:
-            _m.append(np.array(m))
-        return _m
+                # after the first layer
+                assert w.shape[1] == weights[i-1].shape[0]
 
 
     def init_weights(self, weights, bias_vecs):
-        weights = self.list_to_np(weights)
+        weights = [np.array(w) for w in weights]
+        bias_vecs = [np.reshape(np.array(b), (len(b),)) for b in bias_vecs]
         self.verify_weight_dims(weights, bias_vecs)
 
         with torch.no_grad():
-            for i, w in enumerate(weights):
+            for i, (w, b) in enumerate(zip(weights, bias_vecs)):
                 l = nn.Linear(w.shape[1], w.shape[0])
                 l.weight.copy_(torch.tensor(w))
-                l.bias.copy_(torch.tensor(bias_vecs[i]))
+                l.bias.copy_(torch.tensor(b))
                 self.layers.append(l)
                 if i != len(weights)-1:
                     self.layers.append(self.relu)
@@ -67,6 +63,21 @@ class MultiLayerNN(nn.Module):
 
 if __name__ == '__main__':
     weights = [
+        [[1, 0,0,0],
+         [0, 1,0,0],
+         [0, 0,1,0]],
+        [[2, 0, 0],
+         [0, 2, 0]],
+        [[3, 0],
+         [0, 3]]
+    ]
+    bias_vecs =[
+        [1,1,1],
+        [2,2],
+        [3,3],
+    ]
+    f = MultiLayerNN(weights, bias_vecs)
+    weights = [
         [[1, 0],
          [0, 1]],
         [[2, 0],
@@ -75,8 +86,8 @@ if __name__ == '__main__':
          [0, 3]]
     ]
     bias_vecs =[
-        (1,1),
-        (2,2),
-        (3,3),
+        [1,1],
+        [2,2],
+        [3,3],
     ]
     f = MultiLayerNN(weights, bias_vecs)
