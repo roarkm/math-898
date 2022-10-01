@@ -62,39 +62,39 @@ class AbstractVerifier():
         return [c @ opt_vars >= 0]
 
 
-    def constraints_for_k_class_polytope(self, k, x, verbose=False, complement=False):
-        # build a polytope constraint matrix corresponding to the output region
-        # of the k-th class
-        # ie - the polytope corresponding to the region of R^dim where
-        # the k-th component is greater than all other components
-        # returns a list containing the inequality constraints in matrix form
-        assert complement == False, "Complement option not yet supported"
-        z = cp.bmat([cp.Variable(len(x), name='z')]).T
-        n_rows = len(x)-1
-        A = np.zeros((n_rows, len(x)))
-        A[:,k] = 1
+def constraints_for_k_class_polytope(k, x, verbose=False, complement=False):
+    # build a polytope constraint matrix corresponding to the output region
+    # of the k-th class
+    # ie - the polytope corresponding to the region of R^dim where
+    # the k-th component is greater than all other components
+    # returns a list containing the inequality constraints in matrix form
+    assert complement == False, "Complement option not yet supported"
+    z = cp.bmat([cp.Variable(len(x), name='z')]).T
+    n_rows = len(x)-1
+    A = np.zeros((n_rows, len(x)))
+    A[:,k] = 1
 
-        row = 0
-        for j in range(0, len(x)):
-            if j == k:
-                continue
-            A[row][j] = -1
-            row += 1
+    row = 0
+    for j in range(0, len(x)):
+        if j == k:
+            continue
+        A[row][j] = -1
+        row += 1
 
-        b = np.zeros((n_rows, 1))
-        if verbose:
-            print(f"Polytope for {len(x)}-class classifier. k={k}.")
-            print(A)
-            print(b)
-        return [A @ z >= b]
+    b = np.zeros((n_rows, 1))
+    if verbose:
+        print(f"Polytope for {len(x)}-class classifier. k={k}.")
+        print(A)
+        print(b)
+    return [A @ z >= b]
 
 
 def weights_from_nn(f):
-    # only handles 'flat' ffnn's (for now)
     """
-    :type : MultiLayerNN
+    :type  : MultiLayerNN
     :rtype : tuple(list[np.array], list[np.array])
     """
+    # only handles 'flat' ffnn's (for now)
     # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
     weights, bias_vecs = [], []
     for i, l in enumerate(f.layers):
