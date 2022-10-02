@@ -116,3 +116,40 @@ def _vector_for_separating_hyperplane(large_index, small_index, n, complement=Fa
     return c.T
 
 
+def constraints_for_inf_ball(center, eps, verbose=False):
+    # create a list containing the constraints for an inf-ball of radius eps
+    # set constraints for hypercube around x
+    A_lt = np.zeros((2, len(center)))
+    a_vec = np.zeros((2, 1))
+
+    # top constraint
+    z0 = cp.bmat([cp.Variable(len(center), name='z0')]).T
+    A_lt[0][0] = 1
+    a_vec[0][0] = center[0][0] + eps
+    # bottom constraint
+    A_lt[1][0] = -1
+    a_vec[1][0] = -1 * (center[0][0] - eps)
+
+    if len(center) > 1:
+        for i in range(1, len(center)):
+            # top constraint
+            row = np.zeros((1, len(center)))
+            row[0][i] = 1
+            A_lt = np.vstack([A_lt, row])
+            _a = np.matrix([[ float(center[i][0]) + eps ]])
+            a_vec = np.vstack([a_vec, _a])
+
+            # bottom constraint
+            row = np.zeros((1, len(center)))
+            row[0][i] = -1
+            A_lt = np.vstack([A_lt, row])
+            _a = np.matrix([[ -1 * float(center[i][0]) - eps ]])
+            a_vec = np.vstack([a_vec, _a])
+
+    if verbose:
+        print(f"Constraints for inf-ball radius {eps} at center {center}")
+        print(A_lt)
+        print(a_vec)
+    return [A_lt @ z0 <= a_vec]
+
+
