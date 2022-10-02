@@ -14,7 +14,6 @@ class Certify(AbstractVerifier):
 
     def __init__(self, f=None):
         super(Certify, self).__init__(f)
-        self.constraints = []
 
 
     def __str__(self):
@@ -30,6 +29,7 @@ class Certify(AbstractVerifier):
 
         d = 0
         c = self.sep_hplane_for_advclass(x, complement=True)
+        print(c)
 
         P = symbolic_relaxation_for_hypercube(x=x, epsilon=eps)
         print("P =")
@@ -46,6 +46,7 @@ class Certify(AbstractVerifier):
         M_mid_Q = symbolic_build_M_mid(Q=Q, weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
         print("\nM_mid_Q =")
         sp.pprint(M_mid_Q)
+        exit()
 
         S, S_vals = symbolic_relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
         print("\nS =")
@@ -82,8 +83,9 @@ class Certify(AbstractVerifier):
         X = M_in_P + M_mid_Q + M_out_S
 
         constraints += [X << 0]
+        self.constraints = constraints
 
-        prob = cp.Problem(cp.Minimize(1), constraints)
+        prob = cp.Problem(cp.Minimize(1), self.constraints)
         prob.solve(verbose=verbose, max_iters=max_iters, solver=cp.CVXOPT)
 
         debug = ""
@@ -248,7 +250,7 @@ def symbolic_build_M_mid(Q, weights, bias_vecs):
     A = sp.BlockMatrix([
         [BlockDiagMatrix(*sp_weights[0:-1]), sp.zeros(_m,weights[-1].shape[1])]
     ])
-    _m = sum([w.shape[0] for w in weights[1:]])
+    _m = sum([w.shape[1] for w in weights[1:]])
     B = sp.BlockMatrix([
         [sp.zeros(_m, weights[0].shape[1]), BlockDiagMatrix(*[sp.eye(w.shape[1]) for w in weights[1:]])]
     ])
@@ -270,10 +272,14 @@ def build_M_mid(Q, constraints, weights, bias_vecs, activ_func='relu'):
     A = np.block([
         [block_diag(*weights[0:-1]), np.zeros((_m,weights[-1].shape[1]))]
     ])
-    _m = sum([w.shape[0] for w in weights[1:]])
+    _n = sum([w.shape[1] for w in weights])
+    assert A.shape == (_m,_n)
+
+    _m = sum([w.shape[1] for w in weights[1:]])
     B = np.block([
         [np.zeros((_m, weights[0].shape[1])), block_diag(*[np.eye(w.shape[1]) for w in weights[1:]])]
     ])
+    assert B.shape[1] == A.shape[1]
     bias_concat = np.array([np.concatenate(bias_vecs[:-1])]).T
 
     _mid_ = np.block([
@@ -435,12 +441,27 @@ if __name__ == '__main__':
         # (3,3),
         # (4,4),
     ]
+    x = [[9], [0]]
+    weights = [
+        [[1, 0,0,0],
+         [0, 1,0,0],
+         [0, 0,1,0]],
+        [[2, 0, 0],
+         [0, 2, 0]],
+        [[3, 0],
+         [0, 3]]
+    ]
+    bias_vecs =[
+        [1,1,1],
+        [2,2],
+        [3,3],
+    ]
+    x = [[9], [0], [0], [0]]
     f = MultiLayerNN(weights, bias_vecs)
     cert = Certify(f)
     eps = 0.5
-    x = [[9], [0]]
-    # cert.build_symbolic_matrices(x=x, eps=eps)
-    # exit()
+    cert.build_symbolic_matrices(x=x, eps=eps)
+    exit()
     is_robust = cert.verify_at_point(x=x, eps=eps, verbose=True)
     print(f"Identity is {eps}-robust at {x}? {is_robust}")
     # print(cert.P)
