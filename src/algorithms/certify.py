@@ -77,7 +77,8 @@ class Certify(AbstractVerifier):
 
         M_in_P = build_M_in(P, self.nn_weights, self.nn_bias_vecs)
         M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
-                                           weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
+                                           weights=self.nn_weights,
+                                           bias_vecs=self.nn_bias_vecs)
         M_out_S = build_M_out(S, self.nn_weights, self.nn_bias_vecs)
 
         X = M_in_P + M_mid_Q + M_out_S
@@ -96,27 +97,21 @@ class Certify(AbstractVerifier):
             debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
             self.P = P.value
-            # TODO: verify 0-level set of P contains region of interest (test corner points)
+            # TODO: verify 0-level set of P contains region of interest
+            # (test corner points)
             self.Q = Q.value
-            # TODO: verify 0-level set of S contains safety set (how to test for halfspace?)
+            # TODO: verify 0-level set of S contains safety set
+            # (how to test for halfspace?)
             self.S = S
         elif status == cp.OPTIMAL_INACCURATE:
             debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
         elif status == cp.INFEASIBLE:
-            # How to check if this is a false negative? (maybe the relaxations aren't tight enough)
+            # How to check if this is a false negative? 
+            # (maybe the relaxations aren't tight enough)
             debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
-        elif status == cp.INFEASIBLE_INACCURATE:
-            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
-            verified = False
-        elif status == cp.UNBOUNDED:
-            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
-            verified = False
-        elif status == cp.UNBOUNDED_INACCURATE:
-            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
-            verified = False
-        elif status == cp.INFEASIBLE_OR_UNBOUNDED:
+        else:
             debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
 
