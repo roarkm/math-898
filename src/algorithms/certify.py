@@ -7,7 +7,7 @@ import sympy as sp
 from sympy import BlockDiagMatrix
 from scipy.linalg import block_diag
 from src.models.multi_layer import MultiLayerNN
-from src.algorithms.abstract_verifier import AbstractVerifier
+from src.algorithms.abstract_verifier import AbstractVerifier, mat_for_k_class_polytope
 
 
 class Certify(AbstractVerifier):
@@ -372,22 +372,32 @@ def _relaxation_for_hypercube(x, epsilon, constraints=[]):
     return P, constraints
 
 
+def relaxation_for_polytope(H, b):
+    # relaxation for polytope { x | Hx <= b}
+    Gamma = cp.Variable((H.shape[0], H.shape[0]), PSD=True)
+    constr_eq = cp.diag(Gamma) == 0
+    P = np.block([
+        [H.T @ Gamma @ H,       -1 * H.T @ Gamma @ b],
+        [-1 * b.T @ Gamma @ H,       b.T @ Gamma @ b],
+    ])
+    return P, constr_eq
+
+
 def symbolic_build_gamma(dim):
     # build a symmetric  martix G,
     # with G_ii == 0 (zeros on the diag)
-    # how to ensure PSD?
+    # how to ensure PSD? (easy to do with cvxpy, sympy though?)
     free_vars = {}
     for i in range(1, dim):
-        free_vars[dim-i] = [sp.symbols(f"{i}{j}") for j in range(1,i+1)]
-        free_vars[-(dim-i)] = [sp.symbols(f"{i}{j}") for j in range(1,i+1)]
+        free_vars[dim-i] = [sp.symbols(f"g{i}{j}") for j in range(1,i+1)]
+        free_vars[-(dim-i)] = [sp.symbols(f"g{i}{j}") for j in range(1,i+1)]
     return sp.matrices.sparsetools.banded(free_vars)
 
 
 def symbolic_relaxation_for_polytope(H, b):
-    Gamma = symbolic_build_gamma(4)
-    sp.pprint(Gamma)
-    # relaxation for polytope { x | Hx <= b}
-    assert H.shape[0] == b.shape[1]
+    # symbolic relaxation for polytope { x | Hx <= b}
+    assert H.shape[0] == b.shape[0]
+    Gamma = symbolic_build_gamma(H.shape[0])
     P = sp.BlockMatrix([
         [H.T @ Gamma @ H,       -1 * H.T @ Gamma @ b],
         [-1 * b.T @ Gamma @ H,       b.T @ Gamma @ b],
