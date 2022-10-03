@@ -372,6 +372,29 @@ def _relaxation_for_hypercube(x, epsilon, constraints=[]):
     return P, constraints
 
 
+def symbolic_build_gamma(dim):
+    # build a symmetric  martix G,
+    # with G_ii == 0 (zeros on the diag)
+    # how to ensure PSD?
+    free_vars = {}
+    for i in range(1, dim):
+        free_vars[dim-i] = [sp.symbols(f"{i}{j}") for j in range(1,i+1)]
+        free_vars[-(dim-i)] = [sp.symbols(f"{i}{j}") for j in range(1,i+1)]
+    return sp.matrices.sparsetools.banded(free_vars)
+
+
+def symbolic_relaxation_for_polytope(H, b):
+    Gamma = symbolic_build_gamma(4)
+    sp.pprint(Gamma)
+    # relaxation for polytope { x | Hx <= b}
+    assert H.shape[0] == b.shape[1]
+    P = sp.BlockMatrix([
+        [H.T @ Gamma @ H,       -1 * H.T @ Gamma @ b],
+        [-1 * b.T @ Gamma @ H,       b.T @ Gamma @ b],
+    ])
+    return P
+
+
 def symbolic_relaxation_for_half_space(c, d, dim_x):
     # for half space defined by {y : cy < d} (in the output space of NN)
     # dim_x is the input space dimension of the NN
