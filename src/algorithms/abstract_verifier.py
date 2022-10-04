@@ -34,17 +34,17 @@ class AbstractVerifier():
         return s
 
 
-    # def sep_hplane_for_advclass(self, x, complement=False):
-        # fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()
-        # class_order = np.argsort(fx)[0]
-        # # index of component with largest value
-        # x_class = class_order[-1]
-        # # index of component with second largest value
-        # adversarial_class = class_order[-2]
-        # return _vector_for_separating_hyperplane(large_index=x_class,
-                                                 # small_index=adversarial_class,
-                                                 # n=fx.shape[1],
-                                                 # complement=complement)
+    def sep_hplane_for_advclass(self, x, complement=False):
+        fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()
+        class_order = np.argsort(fx)[0]
+        # index of component with largest value
+        x_class = class_order[-1]
+        # index of component with second largest value
+        adversarial_class = class_order[-2]
+        return _vector_for_separating_hyperplane(large_index=x_class,
+                                                 small_index=adversarial_class,
+                                                 n=fx.shape[1],
+                                                 complement=complement)
 
 
 def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
