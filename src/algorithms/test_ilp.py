@@ -6,6 +6,31 @@ from src.models.multi_layer import MultiLayerNN
 
 class TestIteratedLinearVerifier(unittest.TestCase):
 
+    def null_map_network(self):
+        weights = [
+            [[1, 0],
+             [0, 1]],
+            [[0, 0],
+             [0, 0]],
+        ]
+        bias_vecs =[
+            (1,1),
+            (0,0),
+        ]
+        f = MultiLayerNN(weights, bias_vecs)
+        x = torch.rand((1,2))
+        y = torch.zeros((1,2))
+        assert torch.equal(y, f(x))
+        # this fails if called after the decision boundary test!
+        x = [[9], [0]]
+        for n in range(1, 3):
+            ilp = IteratedLinearVerifier(f)
+            epsilon = n + 0.3
+            self.assertTrue(ilp.verify_at_point(x=x, eps=epsilon),
+                            f"Null map should always be {epsilon}-robust at {x}.")
+            del ilp
+
+
     def test_identity_network(self):
         # TODO: test combinations of parameterized dimension, depth
         weights = [
