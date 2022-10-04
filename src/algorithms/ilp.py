@@ -100,7 +100,7 @@ class IteratedLinearVerifier(AbstractVerifier):
                                                                   adversarial_class,
                                                                   complement=True)
 
-        obj = cp.Minimize(cp.atoms.norm_inf(np.matrix(x) - zi_list[0]))
+        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - zi_list[0]))
         self.prob = cp.Problem(obj, self.constraints)
         if verbose:
             print(self.str_constraints())
