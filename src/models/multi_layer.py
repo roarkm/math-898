@@ -15,7 +15,9 @@ class MultiLayerNN(nn.Module):
 
 
     def __str__(self):
-        s = ""
+        in_dim = self.layers[0].weight.data.shape[1]
+        out_dim = self.layers[-1].weight.data.shape[0]
+        s = f"f:R^{in_dim} -> R^{out_dim} \n"
         for i, l in enumerate(self.layers):
             if isinstance(l, nn.Linear):
                 s += f"W{int(i/2)}: {l.weight.data} \n"
@@ -26,7 +28,6 @@ class MultiLayerNN(nn.Module):
 
 
     def verify_weight_dims(self, weights, bias_vecs):
-
         assert len(weights) == len(bias_vecs)
         for i, (w, b) in enumerate(zip(weights, bias_vecs)):
             assert w.shape[0] == b.shape[0]
@@ -60,8 +61,37 @@ class MultiLayerNN(nn.Module):
         return x
 
 
+def identity_map(dim, nlayers):
+    weights   = []
+    bias_vecs = []
+    for l in range(nlayers):
+        # build an identity dim x dim matrix
+        weights.append(np.eye(dim))
+        bias_vecs.append(np.zeros((dim, 1)))
+    f = MultiLayerNN(weights, bias_vecs)
+    return f
+
+
+def null_map(in_dim, out_dim, nlayers = 3):
+    # all but the last layer are fat
+    weights   = []
+    bias_vecs = []
+    for l in range(nlayers):
+        if l < nlayers - 1:
+            weights.append(np.zeros((in_dim, in_dim)))
+            bias_vecs.append(np.zeros((in_dim, 1)))
+        else:
+            # last layer
+            weights.append(np.zeros((out_dim, in_dim)))
+            bias_vecs.append(np.zeros((out_dim, 1)))
+    f = MultiLayerNN(weights, bias_vecs)
+    return f
+
 
 if __name__ == '__main__':
+    f = identity_map(8, 2)
+    f = null_map(4, 2)
+
     weights = [
         [[1, 0,0,0],
          [0, 1,0,0],
@@ -77,6 +107,7 @@ if __name__ == '__main__':
         [3,3],
     ]
     f = MultiLayerNN(weights, bias_vecs)
+
     weights = [
         [[1, 0],
          [0, 1]],
