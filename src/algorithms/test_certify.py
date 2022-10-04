@@ -1,24 +1,31 @@
 import unittest
 import torch
-from src.models.multi_layer import MultiLayerNN
+from src.models.multi_layer import MultiLayerNN, null_map, identity_map
 from src.algorithms.certify import Certify
 
 
 class TestCertify(unittest.TestCase):
 
-    def test_two_layer_identity_network(self):
-        weights = [
-            [[1, 0],
-             [0, 1]],
-            [[1, 0],
-             [0, 1]],
-        ]
-        bias_vecs =[
-            (0,0),
-            (0,0),
-        ]
-        f = MultiLayerNN(weights, bias_vecs)
+    def test_null_map(self):
+        f = null_map(2, 2)
         x = torch.rand((1,2))
+        y = torch.zeros((1,2))
+        assert torch.equal(y, f(x))
+
+        # this fails if called after the decision boundary test!
+        x = [[9], [0]]
+        for n in range(1, 3):
+            cert = Certify(f)
+            epsilon = n + 0.3
+            self.assertTrue(cert.verify_at_point(x=x, eps=epsilon),
+                            f"Null map should always be {epsilon}-robust at {x}.")
+            del cert
+
+
+    def test_two_layer_identity_network(self):
+        dim = 2
+        f = identity_map(dim, 2)
+        x = torch.rand((1,dim))
         assert torch.equal(x, f(x))
 
         # this fails if called after the decision boundary test!
