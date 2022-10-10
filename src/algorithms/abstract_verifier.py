@@ -15,13 +15,7 @@ class AbstractVerifier():
 
 
     def str_constraints(self):
-        if len(self.constraints) == 0:
-            return "No Constraints."
-        s = ""
-        for c in self.constraints:
-            s += f"\nconstraint: "
-            s += str(c)
-        return s
+        return str_constraints(self.constraints)
 
 
     def __str__(self):
@@ -120,19 +114,24 @@ def _vector_for_separating_hyperplane(large_index, small_index, n, complement=Fa
     return c.T
 
 
-def constraints_for_inf_ball(center, eps, verbose=False):
+def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
     # create a list containing the constraints for an inf-ball of radius eps
-    # set constraints for hypercube around x
+    if free_vars:
+        assert free_vars.shape[0] == len(center)
+    else:
+        if free_vars_name == None:
+            free_vars_name = 'z0'
+        free_vars = cp.Variable((len(center),1), name=free_vars_name)
+
     A_lt = np.zeros((2, len(center)))
-    a_vec = np.zeros((2, 1))
+    b_vec = np.zeros((2, 1))
 
     # top constraint
-    z0 = cp.bmat([cp.Variable(len(center), name='z0')]).T
     A_lt[0][0] = 1
-    a_vec[0][0] = center[0][0] + eps
+    b_vec[0][0] = center[0][0] + eps
     # bottom constraint
     A_lt[1][0] = -1
-    a_vec[1][0] = -1 * (center[0][0] - eps)
+    b_vec[1][0] = -1 * (center[0][0] - eps)
 
     if len(center) > 1:
         for i in range(1, len(center)):
@@ -141,19 +140,22 @@ def constraints_for_inf_ball(center, eps, verbose=False):
             row[0][i] = 1
             A_lt = np.vstack([A_lt, row])
             _a = np.matrix([[ float(center[i][0]) + eps ]])
-            a_vec = np.vstack([a_vec, _a])
+            b_vec = np.vstack([b_vec, _a])
 
             # bottom constraint
             row = np.zeros((1, len(center)))
             row[0][i] = -1
             A_lt = np.vstack([A_lt, row])
-            _a = np.matrix([[ -1 * float(center[i][0]) - eps ]])
-            a_vec = np.vstack([a_vec, _a])
-
-    if verbose:
-        print(f"Constraints for inf-ball radius {eps} at center {center}")
-        print(A_lt)
-        print(a_vec)
-    return [A_lt @ z0 <= a_vec]
+            _a = np.matrix([[ -1 * (float(center[i][0]) - eps) ]])
+            b_vec = np.vstack([b_vec, _a])
+    return [A_lt @ free_vars <= b_vec], free_vars
 
 
+def str_constraints(constraints):
+    if len(constraints) == 0:
+        return "No Constraints."
+    s = ""
+    for c in constraints:
+        s += f"\nconstraint: "
+        s += str(c)
+    return s
