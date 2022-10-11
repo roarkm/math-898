@@ -6,7 +6,7 @@ import numpy as np
 import sympy as sp
 from sympy import BlockDiagMatrix
 from scipy.linalg import block_diag
-from src.models.multi_layer import MultiLayerNN
+from src.models.multi_layer import MultiLayerNN, identity_map
 from src.algorithms.abstract_verifier import AbstractVerifier, mat_for_k_class_polytope
 
 
@@ -70,7 +70,7 @@ class Certify(AbstractVerifier):
         d = 0
         c = self.sep_hplane_for_advclass(x, complement=True)
 
-        P, constraints = _relaxation_for_hypercube(x=x, epsilon=eps)
+        P, constraints, _ = _relaxation_for_hypercube(center=x, epsilon=eps)
         dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
         Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
         S = _relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
@@ -352,19 +352,26 @@ def symbolic_relaxation_for_hypercube(x, epsilon):
     return P
 
 
-def _relaxation_for_hypercube(x, epsilon, constraints=[]):
-    n = x.shape[0]
-    x_floor = x - epsilon * np.ones((n,1))
-    x_ceil =  x + epsilon * np.ones((n,1))
+def _relaxation_for_hypercube(center, epsilon, constraints=[], values=None):
+    n = center.shape[0]
+    x_floor = center - epsilon * np.ones((n,1))
+    x_ceil  = center + epsilon * np.ones((n,1))
 
-    a = cp.Variable(n, name='a')
-    Gamma = cp.diag(a)
-    constraints += [a >= 0]
+    if values is None:
+        a = cp.Variable(n, name='a')
+        Gamma = cp.diag(a)
+        constraints += [a >= 0]
+    else:
+        assert values.all() >= 0
+        Gamma = np.diag(values)
+        assert Gamma.shape[0] == n
+        a = None
+
     P = cp.bmat([
         [-2 * Gamma,                   Gamma @ (x_floor + x_ceil)],
         [(x_floor + x_ceil).T @ Gamma, -2 * x_floor.T @ Gamma @ x_ceil]
     ])
-    return P, constraints
+    return P, constraints, a
 
 
 def relaxation_for_polytope(H, b):
@@ -450,25 +457,12 @@ def _build_E(weights, k):
 
 
 if __name__ == '__main__':
-
-    # TODO: Setup testing infra
-    # TODO: try with non-square matrices
-    weights = [
-        [[1, 0],
-         [0, 1]],
-        [[1, 0],
-         [0, 1]],
-        # [[3, 0],
-         # [0, 3]],
-        # [[4, 0],
-         # [0, 4]],
-    ]
-    bias_vecs =[
-        (0,0),
-        (0,0),
-        # (3,3),
-        # (4,4),
-    ]
+    # A, b = mat_for_k_class_polytope(1, 3)
+    # P = symbolic_relaxation_for_polytope(A, b)
+    # # P, constr = relaxation_for_polytope(A, b)
+    # print(P)
+    # exit()
+    f = identity_map(2, 2)
     x = [[9], [0]]
     weights = [
         [[1, 0,0,0],
