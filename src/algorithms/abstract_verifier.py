@@ -41,6 +41,18 @@ class AbstractVerifier():
                                                  complement=complement)
 
 
+def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
+    # create vector c for a seperating hyperplane
+    #    {x | c dot x >= 0 and x,c in R^n} = {x | x_large_index > x_small_index }
+    c = np.zeros((1, n))
+    c[0][large_index] = 1
+    c[0][small_index] = -1
+
+    if complement:
+        return -1 * c.T
+    return c.T
+
+
 def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
                                           verbose=False, complement=False):
     # create constraint for a seperating hyperplane in R^n
@@ -82,36 +94,6 @@ def constraints_for_k_class_polytope(k, x, verbose=False, complement=False):
     z = cp.bmat([cp.Variable(len(x), name='z')]).T
     A, b = mat_for_k_class_polytope(k, len(x), complement)
     return [A @ z >= b]
-
-
-def weights_from_nn(f):
-    """
-    :type  : MultiLayerNN
-    :rtype : tuple(list[np.array], list[np.array])
-    """
-    # only handles 'flat' ffnn's (for now)
-    # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
-    weights, bias_vecs = [], []
-    for i, l in enumerate(f.layers):
-        if isinstance(l, nn.modules.linear.Linear):
-            weights.append(l.weight.data.numpy())
-            bias_vecs.append(l.bias.data.numpy())
-        else:
-            assert isinstance(l, nn.modules.activation.ReLU)
-    assert len(weights) >= 2, "Only supporting more than two layers"
-    return weights, bias_vecs
-
-
-def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
-    # create vector c for a seperating hyperplane
-    #    {x | c dot x >= 0 and x,c in R^n} = {x | x_large_index > x_small_index }
-    c = np.zeros((1, n))
-    c[0][large_index] = 1
-    c[0][small_index] = -1
-
-    if complement:
-        return -1 * c.T
-    return c.T
 
 
 def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
@@ -159,3 +141,23 @@ def str_constraints(constraints):
         s += f"\nconstraint: "
         s += str(c)
     return s
+
+
+def weights_from_nn(f):
+    """
+    :type  : MultiLayerNN
+    :rtype : tuple(list[np.array], list[np.array])
+    """
+    # only handles 'flat' ffnn's (for now)
+    # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
+    weights, bias_vecs = [], []
+    for i, l in enumerate(f.layers):
+        if isinstance(l, nn.modules.linear.Linear):
+            weights.append(l.weight.data.numpy())
+            bias_vecs.append(l.bias.data.numpy())
+        else:
+            assert isinstance(l, nn.modules.activation.ReLU)
+    assert len(weights) >= 2, "Only supporting more than two layers"
+    return weights, bias_vecs
+
+
