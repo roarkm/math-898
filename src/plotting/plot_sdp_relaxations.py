@@ -1,5 +1,5 @@
 from src.models.multi_layer import MultiLayerNN, identity_map
-from src.algorithms.certify import Certify, _relaxation_for_hypercube
+from src.algorithms.certify import Certify, _relaxation_for_hypercube, _relaxation_for_half_space
 from matplotlib.patches import Ellipse
 from src.algorithms.abstract_verifier import constraints_for_separating_hyperplane, str_constraints, constraints_for_inf_ball
 
@@ -9,16 +9,11 @@ import cvxpy as cp
 import numpy as np
 import math
 
-
-def plot_half_space(large_index=0, resolution=0.05,
+def plot_half_space(c=[[-1], [1]], d=0, resolution=0.05,
                     relaxation_matrix=None, values={'set':1, 'not_set':0}):
     # 2d only
-    small_index = 1 - large_index
-    free_vars = cp.Variable((2,1), name='x')
-    constr = constraints_for_separating_hyperplane(free_vars.T, large_index, small_index)
-    print(str_constraints(constr))
-    # exit()
-    half_space_ind = make_set_indicator(constr, free_vars)
+    c = np.array(c)
+    half_space_ind = make_half_space_indicator(c,d)
 
     # TODO: parameterize the canvas size
     _x1 = np.arange(-1, 10, resolution)
@@ -26,18 +21,8 @@ def plot_half_space(large_index=0, resolution=0.05,
     x1, x2  = np.meshgrid(_x1, _x2)
 
     test_point = np.array([[9], [0]])
-    assert test_point.T @ np.array([[1], [-1]]) > 0
-    # exit()
-    expr = cp.transforms.indicator(constr)
-    free_vars.value = test_point
-    assert expr.value == 0 # TODO: file bug report
-    # assert expr.value == float('inf')
-    # assert half_space_ind(3, 9) == 1
-    exit()
-    # assert half_space_ind(0, 9) == 1
-    # assert half_space_ind(9, 0) == 0
-    # print(half_space_ind(3, 1))
-    # print(half_space_ind(3, 1))
+    # assert half_space_ind(9, 0) == 1
+    # assert half_space_ind(0, 9) == 0
     # exit()
 
     z = half_space_ind(x1, x2)
@@ -50,10 +35,10 @@ def plot_half_space(large_index=0, resolution=0.05,
     plt.xlabel('x1')
     plt.ylabel('x2')
 
-    # if relaxation_matrix is not None:
-        # _qp = make_quadratic(relaxation_matrix)
-        # z = _qp(x1, x2)
-        # plt.contourf(x1, x2, z, alpha=0.2)
+    if relaxation_matrix is not None:
+        _qp = make_quadratic(relaxation_matrix)
+        z = _qp(x1, x2)
+        plt.contourf(x1, x2, z, alpha=0.2)
     plt.show()
 
 
@@ -100,6 +85,15 @@ def make_set_indicator(constraints, free_vars, values={'set':1, 'not_set':0}):
     return np.vectorize(indicator)
 
 
+def make_half_space_indicator(c, d=0, values={'set':1, 'not_set':0}):
+    # 2d only
+    def indicator(x1, x2):
+        if (np.dot(c.T, np.array([[x1], [x2]])) > d):
+            return values['set'] # (x1, x2) satisfy the constraints
+        return values['not_set'] # (x1, x2) DO NOT satisfy the constraints
+    return np.vectorize(indicator)
+
+
 def make_quadratic(P):
     # returns a function that computes the quadratic invoked by P
     def M_quad(x1, x2):
@@ -121,4 +115,8 @@ if __name__ == '__main__':
     # plot_inf_ball(center, eps, resolution=0.05, relaxation_matrix=P.value)
     # exit()
 
-    plot_half_space()
+    c = np.array([[-1], [1]])
+    d = 0
+    S = _relaxation_for_half_space(c,d,2)
+    S = S[np.ix_([2,3,4], [2,3,4])] # get submatrix corresponding to output of nn
+    plot_half_space(c, d, relaxation_matrix=S) # relaxation is tight so not visible
