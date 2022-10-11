@@ -20,7 +20,7 @@ def plot_half_space(c=[[-1], [1]], d=0, resolution=0.05,
     _x2 = np.arange(-1, 10, resolution)
     x1, x2  = np.meshgrid(_x1, _x2)
 
-    test_point = np.array([[9], [0]])
+    # test_point = np.array([[9], [0]])
     # assert half_space_ind(9, 0) == 1
     # assert half_space_ind(0, 9) == 0
     # exit()
@@ -61,7 +61,7 @@ def plot_inf_ball(center, eps, values={'set':1, 'not_set':0},
     plt.axhline()
     plt.axvline()
     plt.contourf(x1, x2, z)
-    plt.plot(center[0][0], center[1][0], marker="x", markersize=10)
+    # plt.plot(center[0][0], center[1][0], marker="x", markersize=10)
     plt.colorbar()
     plt.xlabel('x1')
     plt.ylabel('x2')
@@ -106,13 +106,46 @@ def make_quadratic(P):
     return np.vectorize(M_quad)
 
 
+def plot_relu(resolution=0.01):
+    # TODO: parameterize the canvas size
+    x = np.arange(-5, 8, resolution)
+
+    y = np.maximum(0, x) #
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    # plt.grid(True)
+    # ax.spines['left'].set_position('center')
+    ax.spines['bottom'].set_position('zero')
+    ax.spines['right'].set_color('none')
+    ax.spines['left'].set_color('none')
+    ax.spines['top'].set_color('none')
+
+    ax.xaxis.set_ticks_position('bottom')
+    ax.yaxis.set_ticks_position('left')
+
+    # plot the function
+    plt.plot(x, y, 'r')
+
+    # plt.xlabel('x1')
+    # plt.ylabel('x2')
+    # plt.axhline()
+    # plt.axvline()
+
+    # show the plot
+    plt.show()
+
+
+
 if __name__ == '__main__':
-    # center = np.array([[1], [1]])
-    # eps = 0.8
-    # # g_vals = np.array([9, 2])
-    # g_vals = 100 * np.random.random_sample(center.shape[0])
-    # P, _, _ = _relaxation_for_hypercube(center, eps, values=g_vals)
-    # plot_inf_ball(center, eps, resolution=0.05, relaxation_matrix=P.value)
+    plot_relu()
+    exit()
+    center = np.array([[1], [1]])
+    eps = 0.8
+    # g_vals = np.array([9, 2])
+    g_vals = 100 * np.random.random_sample(center.shape[0])
+    P, _, _ = _relaxation_for_hypercube(center, eps, values=g_vals)
+    plot_inf_ball(center, eps, resolution=0.05, relaxation_matrix=P.value)
     # exit()
 
     c = np.array([[-1], [1]])
