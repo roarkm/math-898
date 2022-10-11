@@ -63,7 +63,7 @@ def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
     c = _vector_for_separating_hyperplane(large_index, small_index,
                                           opt_vars.shape[1],
                                           complement=complement)
-    return [c @ opt_vars >= 0]
+    return [c @ opt_vars >= np.zeros((1,1))]
 
 
 def mat_for_k_class_polytope(k, dim, complement=False):
@@ -98,7 +98,7 @@ def constraints_for_k_class_polytope(k, x, verbose=False, complement=False):
 
 def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
     # create a list containing the constraints for an inf-ball of radius eps
-    if free_vars:
+    if free_vars is not None:
         assert free_vars.shape[0] == len(center)
     else:
         if free_vars_name == None:
@@ -138,7 +138,7 @@ def str_constraints(constraints):
         return "No Constraints."
     s = ""
     for c in constraints:
-        s += f"\nconstraint: "
+        s += f"\nconstraint:\n"
         s += str(c)
     return s
 
