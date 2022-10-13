@@ -1,9 +1,9 @@
+import logging
 import numpy as np
 import torch
 import torch.nn as nn
 import cvxpy as cp
-# from pulp import LpMaximize, LpProblem, LpStatus, lpSum, LpVariable
-from src.models.multi_layer import MultiLayerNN
+from src.models.multi_layer import MultiLayerNN, identity_map
 from src.algorithms.abstract_verifier import AbstractVerifier, constraints_for_separating_hyperplane
 
 class IteratedLinearVerifier(AbstractVerifier):
@@ -11,6 +11,7 @@ class IteratedLinearVerifier(AbstractVerifier):
 
     def __init__(self, f=None):
         super(IteratedLinearVerifier, self).__init__(f)
+        logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
 
@@ -21,10 +22,8 @@ class IteratedLinearVerifier(AbstractVerifier):
         assert self.f != None, "No NN provided."
         assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
-        # _im_x = np.array(x)
         _im_x = np.reshape(np.array(x), (len(x), 1))
-        # print(f"ref point x: {_im_x.shape}")
-        # print(_im_x)
+        logging.debug(f"Building for x = \n{_im_x}")
 
         # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
@@ -41,13 +40,13 @@ class IteratedLinearVerifier(AbstractVerifier):
 
             # add constraint for affine transformation
             zi_list.append(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat"))
-            # print(zi_list[-1] == Wi @ zi_list[-2] + bi)
+            logging.debug(zi_list[-1] == Wi @ zi_list[-2] + bi)
             self.constraints += [zi_list[-1] == Wi @ zi_list[-2] + bi]
 
             # propogate reference point
             _im_x = Wi @ _im_x + bi
-            # print(f"after layer {i} affine T - shape={_im_x.shape}")
-            # print(_im_x)
+            logging.debug(f"After layer {i} affine T - shape={_im_x.shape}")
+            logging.debug(_im_x)
 
             # for all but the last layer
             # TODO: Do not assume last layer has no ReLU (how to verify?)
@@ -59,7 +58,7 @@ class IteratedLinearVerifier(AbstractVerifier):
                 delta = np.zeros((1, len(_im_x)))
                 beta  = np.zeros((1, len(_im_x)))
                 for j, _im_x_j in enumerate(_im_x):
-                    # print(f"layer-{i}, _im_x[{j}] = {_im_x_j[0]}")
+                    logging.debug(f"layer-{i}, _im_x[{j}] = {_im_x_j[0]}")
                     # continue
                     if _im_x_j[0] >= 0:
                         # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
@@ -79,11 +78,11 @@ class IteratedLinearVerifier(AbstractVerifier):
                 self.constraints += [zi_list[-1] == beta @ zi_list[-2]]
 
                 # continue propogating reference point through f
-                # print(f"Before relu at layer {i}: shape={_im_x.shape}")
-                # print(_im_x)
+                logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
+                logging.debug(_im_x)
                 _im_x = np.array(self.relu(torch.tensor(_im_x)))
-                # print(f"After relu at layer {i}: shape={_im_x.shape}")
-                # print(_im_x)
+                logging.debug(f"After relu at layer {i}: shape={_im_x.shape}")
+                logging.debug(_im_x)
 
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
@@ -94,7 +93,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         _class_order = np.argsort(fx)[0]
         x_class = _class_order[-1]           # index of component with largest value
         adversarial_class = _class_order[-2] # index of component with second largest value
-        # print(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
+        logging.debug(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
 
         self.constraints += constraints_for_separating_hyperplane(zi_list[-1].T, x_class,
                                                                   adversarial_class,
@@ -102,18 +101,17 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - zi_list[0]))
         self.prob = cp.Problem(obj, self.constraints)
-        if verbose:
-            print(self.str_constraints())
+        logging.debug("Constraints")
+        logging.debug(self.str_constraints())
 
 
     def robustness_at_point(self, x, verbose=False):
         self.prob.solve(verbose=verbose)
         status = self.prob.status
         if status == cp.OPTIMAL:
-            # print(f"f({x}) = {fx} |--> class: {x_class}")
             return self.prob.value
         elif status == cp.OPTIMAL_INACCURATE:
-            print("Warning: inaccurate solution.")
+            logging.warning("Warning: inaccurate solution.")
             return self.prob.value
         else:
             raise Exception(status)
@@ -122,68 +120,30 @@ class IteratedLinearVerifier(AbstractVerifier):
     def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False):
         self.build_problem_for_point(x=x, verbose=verbose)
         try:
-            eps_hat = self.robustness_at_point(x,verbose=verbose)
+            eps_hat = self.robustness_at_point(x, verbose=verbose)
+            if eps_hat < eps:
+                return False
+            return True
         except Exception as err:
-            print(f"ERROR: {err}")
+            logging.critical(err)
 
-        if eps_hat < eps:
-            return False
-        return True
 
 
 
 if __name__ == '__main__':
-    # weights = [
-        # [[1, 0, 0, 0],
-         # [0, 1, 0, 0],
-         # [0, 0, 1, 0]],
-        # [[2, 0, 0],
-         # [0, 2, 0]],
-        # # [[3, 0],
-         # # [0, 3]]
-    # ]
-    # bias_vecs =[
-        # [1,1,1],
-        # [2,2],
-        # # [3,3],
-    # ]
-
-    # weights = [
-        # [[1, 0],
-         # [0, 1]],
-        # [[2, 0],
-         # [0, 2]],
-        # # [[3, 0],
-         # # [0, 3]]
-    # ]
-    # bias_vecs =[
-        # [1,1],
-        # [2,2],
-        # # [3,3],
-    # ]
-
-    weights = [
-        [[1, 0],
-         [0, 1]],
-        [[1, 0],
-         [0, 1]],
-    ]
-    bias_vecs =[
-        [0,0],
-        [0,0],
-    ]
-    f = MultiLayerNN(weights, bias_vecs)
+    f = identity_map(2,2)
     ilp = IteratedLinearVerifier(f)
     eps = 0.5
-    x = [[0], [1]]
+    x = [[9], [0]]
     is_robust = ilp.verify_at_point(x=x, eps=eps)
 
     # TODO: need some tolerance built in?
     if is_robust:
-        print(f"Best z0: {ilp.opt_var.value}")
-        print(f"Identity map is ({eps})-robust at x={x}. epsilon-hat: {ilp.prob.value}")
+        im_adv = f(torch.tensor(ilp.opt_var.value).T.float()).detach().numpy()
+        fx = f(torch.tensor(x).T.float()).detach().numpy()
+        logging.info(f"Identity map is ({eps})-robust at x={x}. epsilon-hat={ilp.prob.value} > epsilon={eps}")
+        logging.info(f"Best z0:\n{ilp.opt_var.value}")
     else:
-        # print(ilp.str_constraints())
-        print(f"Best z0: {ilp.opt_var.value}")
-        print(f"\nERROR: Identity map is NOT ({eps})-robust at x={x}: epsilon_hat: {ilp.prob.value}")
-    # assert is_robust
+        logging.debug(ilp.str_constraints())
+        logging.info(f"Best z0: {ilp.opt_var.value}")
+        logging.info(f"Identity map is NOT ({eps})-robust at x={x}: epsilon_hat: {ilp.prob.value}")
