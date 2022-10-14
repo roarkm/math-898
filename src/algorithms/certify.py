@@ -7,8 +7,10 @@ import numpy as np
 import sympy as sp
 from sympy import BlockDiagMatrix
 from scipy.linalg import block_diag
-from src.models.multi_layer import MultiLayerNN, identity_map
-from src.algorithms.abstract_verifier import AbstractVerifier, mat_for_k_class_polytope
+from src.models.multi_layer import (MultiLayerNN,
+                                    identity_map)
+from src.algorithms.abstract_verifier import (AbstractVerifier,
+                                              mat_for_k_class_polytope)
 
 
 class Certify(AbstractVerifier):
@@ -59,7 +61,6 @@ class Certify(AbstractVerifier):
         X = M_in_P + M_mid_Q + M_out_S
         logging.info("X =")
         logging.info(sp.pretty(X))
-
 
     def verify_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
         x = np.array(x)
