@@ -1,5 +1,6 @@
 from itertools import combinations
 import torch
+import logging
 import torch.nn as nn
 import cvxpy as cp
 import numpy as np
@@ -14,13 +15,12 @@ class Certify(AbstractVerifier):
 
     def __init__(self, f=None):
         super(Certify, self).__init__(f)
-
+        logging.basicConfig(format='Certify-%(levelname)s:\n%(message)s', level=logging.INFO)
 
     def __str__(self):
         s = 'Certify Algorithm\n'
         s += super().__str__()
         return s
-
 
     def build_symbolic_matrices(self, x=None, eps=1):
         x = np.array(x)
@@ -29,37 +29,36 @@ class Certify(AbstractVerifier):
 
         d = 0
         c = self.sep_hplane_for_advclass(x, complement=True)
-        print(c)
+        logging.debug(c)
 
         P = symbolic_relaxation_for_hypercube(x=x, epsilon=eps)
-        print("P =")
-        sp.pprint(P)
+        logging.info("P =")
+        logging.info(sp.pretty(P))
         M_in_P = symbolic_build_M_in(P, self.nn_weights, self.nn_bias_vecs)
-        print("\nM_in_P =")
-        sp.pprint(M_in_P)
+        logging.info("M_in_P =")
+        logging.info(sp.pretty(M_in_P))
 
         dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
         Q, Q_vars = symbolic_relaxation_for_relu(dim=dim)
-        print("\nQ =")
-        sp.pprint(Q)
+        logging.info("Q =")
+        logging.info(sp.pretty(Q))
 
         M_mid_Q = symbolic_build_M_mid(Q=Q, weights=self.nn_weights, bias_vecs=self.nn_bias_vecs)
-        print("\nM_mid_Q =")
-        sp.pprint(M_mid_Q)
-        exit()
+        logging.info("M_mid_Q =")
+        logging.info(sp.pretty(M_mid_Q))
 
         S, S_vals = symbolic_relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
-        print("\nS =")
-        sp.pprint(S.subs(S_vals))
+        logging.info(("S ="))
+        logging.info(sp.pretty(S.subs(S_vals)))
 
         M_out_S, vals = symbolic_build_M_out(S, self.nn_weights, self.nn_bias_vecs)
         # S_vals.update(vals)
-        print("\n M_out_S =")
-        sp.pprint(M_out_S.subs(S_vals))
+        logging.info("M_out_S =")
+        logging.info(sp.pretty(M_out_S.subs(S_vals)))
 
         X = M_in_P + M_mid_Q + M_out_S
-        print("\n X =")
-        sp.pprint(X)
+        logging.info("X =")
+        logging.info(sp.pretty(X))
 
 
     def verify_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
@@ -119,7 +118,7 @@ class Certify(AbstractVerifier):
             if verified:
                 debug += f"P =\n {P.value}\n"
                 debug += f"Q =\n {Q.value}\n"
-            print(debug)
+            logging.debug(debug)
         return verified
 
 
@@ -460,33 +459,39 @@ if __name__ == '__main__':
     # A, b = mat_for_k_class_polytope(1, 3)
     # P = symbolic_relaxation_for_polytope(A, b)
     # # P, constr = relaxation_for_polytope(A, b)
-    # print(P)
+    # logging.debug(P)
     # exit()
-    f = identity_map(2, 2)
     x = [[9], [0]]
-    weights = [
-        [[1, 0,0,0],
-         [0, 1,0,0],
-         [0, 0,1,0]],
-        [[2, 0, 0],
-         [0, 2, 0]],
-        [[3, 0],
-         [0, 3]]
-    ]
-    bias_vecs =[
-        [1,1,1],
-        [2,2],
-        [3,3],
-    ]
-    x = [[9], [0], [0], [0]]
-    f = MultiLayerNN(weights, bias_vecs)
+    # weights = [
+        # [[1, 0,0,0],
+         # [0, 1,0,0],
+         # [0, 0,1,0]],
+        # [[2, 0, 0],
+         # [0, 2, 0]],
+        # [[3, 0],
+         # [0, 3]]
+    # ]
+    # bias_vecs =[
+        # [1,1,1],
+        # [2,2],
+        # [3,3],
+    # ]
+    # x = [[9], [0], [0], [0]]
+    # f = MultiLayerNN(weights, bias_vecs)
+    f = identity_map(2, 2)
     cert = Certify(f)
     eps = 0.5
     cert.build_symbolic_matrices(x=x, eps=eps)
     exit()
-    is_robust = cert.verify_at_point(x=x, eps=eps, verbose=True)
-    print(f"Identity is {eps}-robust at {x}? {is_robust}")
-    # print(cert.P)
+    # is_robust = cert.verify_at_point(x=x, eps=eps, verbose=True, max_iters=10**k)
+    for k in range(1, 6):
+        # is_robust = cert.verify_at_point(x=x, eps=eps, max_iters=10**k)
+        is_robust = cert.verify_at_point(x=x, eps=eps)
+        logging.info("P = \n")
+        logging.info(cert.P)
+        logging.info("Q = \n")
+        logging.info(cert.Q)
+    # logging.info(cert.P)
     # x = [[0], [9]]
     # is_robust = cert.verify_at_point(x=x, eps=eps)
-    # print(f"Identity is {eps}-robust at {x}? {is_robust}")
+    # logging.info(f"Identity is {eps}-robust at {x}? {is_robust}")
