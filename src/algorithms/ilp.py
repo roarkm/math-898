@@ -3,17 +3,17 @@ import numpy as np
 import torch
 import torch.nn as nn
 import cvxpy as cp
-from src.models.multi_layer import MultiLayerNN, identity_map
-from src.algorithms.abstract_verifier import AbstractVerifier, constraints_for_separating_hyperplane
+from src.models.multi_layer import (MultiLayerNN,
+                                    identity_map)
+from src.algorithms.abstract_verifier import (AbstractVerifier,
+                                              constraints_for_separating_hyperplane)
 
 class IteratedLinearVerifier(AbstractVerifier):
-
 
     def __init__(self, f=None):
         super(IteratedLinearVerifier, self).__init__(f)
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
-
 
     def build_problem_for_point(self, x, verbose=False):
         # use ILP to verify all x' within eps inf norm of x
@@ -104,7 +104,6 @@ class IteratedLinearVerifier(AbstractVerifier):
         logging.debug("Constraints")
         logging.debug(self.str_constraints())
 
-
     def robustness_at_point(self, x, verbose=False):
         self.prob.solve(verbose=verbose)
         status = self.prob.status
@@ -116,7 +115,6 @@ class IteratedLinearVerifier(AbstractVerifier):
         else:
             raise Exception(status)
 
-
     def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False):
         self.build_problem_for_point(x=x, verbose=verbose)
         try:
@@ -126,7 +124,6 @@ class IteratedLinearVerifier(AbstractVerifier):
             return True
         except Exception as err:
             logging.critical(err)
-
 
 
 
