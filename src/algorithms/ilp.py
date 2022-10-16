@@ -15,7 +15,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
-    def build_problem_for_point(self, x, verbose=False):
+    def build_constraints_for_point(self, x, verbose=False):
         # use ILP to verify all x' within eps inf norm of x
         # are classified the same as x'
         # (ie: f(x) == f(x') for all x' in inf-norm ball centered at x
@@ -27,8 +27,8 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
-        zi_list = [cp.Variable(_im_x.shape, name='z0')]
-        self.opt_var = zi_list[0]
+        self.free_vars = [cp.Variable(_im_x.shape, name='z0')]
+        self.opt_var = self.free_vars[0]
 
         # propogate x layer by layer through f
         # 1) add constraints for affine transforms
@@ -39,9 +39,9 @@ class IteratedLinearVerifier(AbstractVerifier):
             bi = np.reshape(_bi, (_bi.shape[0], 1))
 
             # add constraint for affine transformation
-            zi_list.append(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat"))
-            logging.debug(zi_list[-1] == Wi @ zi_list[-2] + bi)
-            self.constraints += [zi_list[-1] == Wi @ zi_list[-2] + bi]
+            self.free_vars.append(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat"))
+            logging.debug(self.free_vars[-1] == Wi @ self.free_vars[-2] + bi)
+            self.constraints += [self.free_vars[-1] == Wi @ self.free_vars[-2] + bi]
 
             # propogate reference point
             _im_x = Wi @ _im_x + bi
@@ -52,7 +52,7 @@ class IteratedLinearVerifier(AbstractVerifier):
             # TODO: Do not assume last layer has no ReLU (how to verify?)
             if i < len(self.nn_weights):
                 # add constraints for ReLU activation pattern
-                zi_list.append(cp.Variable((Wi.shape[0],1), f"z{i+1}"))
+                self.free_vars.append(cp.Variable((Wi.shape[0],1), f"z{i+1}"))
                 # build indicator vector to encode inequality
                 # constraint on zi_hat as dot product
                 delta = np.zeros((1, len(_im_x)))
@@ -72,10 +72,10 @@ class IteratedLinearVerifier(AbstractVerifier):
                         beta[0,j] = 0
 
                 # constraint (zi_hat >= 0 OR zi_hat < 0)
-                self.constraints += [delta @ zi_list[-2] >= 0]
+                self.constraints += [delta @ self.free_vars[-2] >= 0]
 
                 # constraint (xi == zi_hat OR xi == 0)
-                self.constraints += [zi_list[-1] == beta @ zi_list[-2]]
+                self.constraints += [self.free_vars[-1] == beta @ self.free_vars[-2]]
 
                 # continue propogating reference point through f
                 logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
@@ -95,11 +95,16 @@ class IteratedLinearVerifier(AbstractVerifier):
         adversarial_class = _class_order[-2] # index of component with second largest value
         logging.debug(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
 
-        self.constraints += constraints_for_separating_hyperplane(zi_list[-1].T, x_class,
+        self.constraints += constraints_for_separating_hyperplane(self.free_vars[-1].T, x_class,
                                                                   adversarial_class,
                                                                   complement=True)
+        return self.constraints
 
-        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - zi_list[0]))
+    def build_problem_for_point(self, x, verbose=False):
+        if self.constraints == []:
+            self.build_constraints_for_point(x, verbose=verbose)
+
+        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars[0]))
         self.prob = cp.Problem(obj, self.constraints)
         logging.debug("Constraints")
         logging.debug(self.str_constraints())

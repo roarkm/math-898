@@ -9,6 +9,7 @@ class AbstractVerifier():
     def __init__(self, f=None):
         self.f = f
         self.constraints = []
+        self.free_vars = []
         self.relu = nn.ReLU()
         if f:
             self.nn_weights, self.nn_bias_vecs = weights_from_nn(self.f)
@@ -47,7 +48,6 @@ def _vector_for_separating_hyperplane(large_index, small_index, n, complement=Fa
     c = np.zeros((1, n))
     c[0][large_index] = 1
     c[0][small_index] = -1
-
     if complement:
         return -1 * c.T
     return c.T
