@@ -32,15 +32,15 @@ class IteratedLinearVerifier(AbstractVerifier):
         # propogate x layer by layer through f
         # 1) add constraints for affine transforms
         # 2) add constraints for ReLU activation pattern
-        for i in range(0, len(self.nn_weights)):
-            Wi = self.nn_weights[i]
-            _bi = self.nn_bias_vecs[i]
+        for i in range(1, len(self.nn_weights)+1):
+            Wi = self.nn_weights[i-1]
+            _bi = self.nn_bias_vecs[i-1]
             bi = np.reshape(_bi, (_bi.shape[0], 1))
 
             # add constraint for affine transformation
-            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat")) # pre-activation
+            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
             logging.debug(self.free_vars(names_only=True))
-            self.constraints += [self.free_vars(f"z{i+1}_hat") == Wi @ self.free_vars(f"z{i}") + bi]
+            self.constraints += [self.free_vars(f"z{i}_hat") == Wi @ self.free_vars(f"z{i-1}") + bi]
             logging.debug(self.constraints[-1])
 
             # propogate reference point
@@ -52,7 +52,7 @@ class IteratedLinearVerifier(AbstractVerifier):
             # TODO: Do not assume last layer has no ReLU (how to verify?)
             if i < len(self.nn_weights):
                 # add constraints for ReLU activation pattern
-                self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i+1}")) # post-activation
+                self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
 
                 # build indicator vector to encode inequality
                 # constraint on zi_hat as dot product
@@ -73,10 +73,10 @@ class IteratedLinearVerifier(AbstractVerifier):
                         beta[0,j] = 0
 
                 # constraint (zi_hat >= 0 OR zi_hat < 0)
-                self.constraints += [delta @ self.free_vars(f"z{i+1}_hat") >= 0]
+                self.constraints += [delta @ self.free_vars(f"z{i}_hat") >= 0]
 
                 # constraint (xi == zi_hat OR xi == 0)
-                self.constraints += [self.free_vars(f"z{i+1}") == beta @ self.free_vars(f"z{i+1}_hat")]
+                self.constraints += [self.free_vars(f"z{i}") == beta @ self.free_vars(f"z{i}_hat")]
                 logging.debug(self.constraints[-1])
 
                 # continue propogating reference point through f
@@ -97,7 +97,9 @@ class IteratedLinearVerifier(AbstractVerifier):
         adversarial_class = _class_order[-2] # index of component with second largest value
         logging.debug(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
         n = len(self.nn_weights)
-        self.constraints += constraints_for_separating_hyperplane(self.free_vars(f"z{n}").T, x_class,
+        # out_var = self.free_vars(f"z{n}").T      # TODO: if last layer ReLU
+        out_var = self.free_vars(f"z{n}_hat").T
+        self.constraints += constraints_for_separating_hyperplane(out_var, x_class,
                                                                   adversarial_class,
                                                                   complement=True)
         return self.constraints
