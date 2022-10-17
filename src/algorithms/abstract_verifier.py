@@ -9,15 +9,25 @@ class AbstractVerifier():
     def __init__(self, f=None):
         self.f = f
         self.constraints = []
-        self.free_vars = []
+        self._free_vars = []
         self.relu = nn.ReLU()
         if f:
             self.nn_weights, self.nn_bias_vecs = weights_from_nn(self.f)
 
+    def add_free_var(self, var):
+        self._free_vars.append(var)
+
+    def free_vars(self, var_name=None, names_only=False):
+        if names_only:
+            if self._free_vars == []:
+                return []
+            return [v.name() for v in self._free_vars]
+        if var_name is None:
+            return self._free_vars
+        return [v for v in self._free_vars if v.name() == var_name][0]
 
     def str_constraints(self):
         return str_constraints(self.constraints)
-
 
     def __str__(self):
         s = ''
@@ -27,7 +37,6 @@ class AbstractVerifier():
             s += f"f:R^{self.nn_weights[0].shape[1]} -> R^{self.nn_weights[-1].shape[0]}"
             s += f"\t{len(self.nn_weights)} layers"
         return s
-
 
     def sep_hplane_for_advclass(self, x, complement=False):
         fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()

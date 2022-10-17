@@ -38,16 +38,16 @@ class TestIteratedLinearVerifier(unittest.TestCase):
 
 
 def debug_failure(err_str, x, epsilon, ilp):
-    im_adv = ilp.f(torch.tensor(ilp.z0.value).T.float()).detach().numpy()
+    im_adv = ilp.f(torch.tensor(ilp.free_vars('z0').value).T.float()).detach().numpy()
     fx     = ilp.f(torch.tensor(x).T.float()).detach().numpy()
     x_class   = np.argsort(fx)[0][-1]
     adv_class = np.argsort(im_adv)[0][-1]
 
     err_str += f" at {x}.\n"
     err_str += f"f({x}) = {fx} |--> {x_class}.\n"
-    err_str += f"\nf({ilp.z0.value}) = {im_adv} |--> {adv_class}\n"
+    err_str += f"\nf({ilp.free_vars('z0').value}) = {im_adv} |--> {adv_class}\n"
     err_str += f"Epsilon: {epsilon} < epsilon_hat: {ilp.prob.value}\n"
-    # err_str += f"Opt Var:\n{ilp.z0.value}\n"
+    # err_str += f"Opt Var:\n{ilp.free_vars('z0').value}\n"
     return err_str
 
 

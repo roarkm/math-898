@@ -27,8 +27,7 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
-        self.free_vars = [cp.Variable(_im_x.shape, name='z0')]
-        self.z0 = self.free_vars[0]
+        self.add_free_var(cp.Variable(_im_x.shape, name='z0'))
 
         # propogate x layer by layer through f
         # 1) add constraints for affine transforms
@@ -39,8 +38,9 @@ class IteratedLinearVerifier(AbstractVerifier):
             bi = np.reshape(_bi, (_bi.shape[0], 1))
 
             # add constraint for affine transformation
-            self.free_vars.append(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat"))
-            self.constraints += [self.free_vars[-1] == Wi @ self.free_vars[-2] + bi]
+            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat")) # pre-activation
+            logging.debug(self.free_vars(names_only=True))
+            self.constraints += [self.free_vars(f"z{i+1}_hat") == Wi @ self.free_vars(f"z{i}") + bi]
             logging.debug(self.constraints[-1])
 
             # propogate reference point
@@ -52,7 +52,8 @@ class IteratedLinearVerifier(AbstractVerifier):
             # TODO: Do not assume last layer has no ReLU (how to verify?)
             if i < len(self.nn_weights):
                 # add constraints for ReLU activation pattern
-                self.free_vars.append(cp.Variable((Wi.shape[0],1), f"z{i+1}"))
+                self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i+1}")) # post-activation
+
                 # build indicator vector to encode inequality
                 # constraint on zi_hat as dot product
                 delta = np.zeros((1, len(_im_x)))
@@ -72,10 +73,11 @@ class IteratedLinearVerifier(AbstractVerifier):
                         beta[0,j] = 0
 
                 # constraint (zi_hat >= 0 OR zi_hat < 0)
-                self.constraints += [delta @ self.free_vars[-2] >= 0]
+                self.constraints += [delta @ self.free_vars(f"z{i+1}_hat") >= 0]
 
                 # constraint (xi == zi_hat OR xi == 0)
-                self.constraints += [self.free_vars[-1] == beta @ self.free_vars[-2]]
+                self.constraints += [self.free_vars(f"z{i+1}") == beta @ self.free_vars(f"z{i+1}_hat")]
+                logging.debug(self.constraints[-1])
 
                 # continue propogating reference point through f
                 logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
@@ -94,8 +96,8 @@ class IteratedLinearVerifier(AbstractVerifier):
         x_class = _class_order[-1]           # index of component with largest value
         adversarial_class = _class_order[-2] # index of component with second largest value
         logging.debug(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
-
-        self.constraints += constraints_for_separating_hyperplane(self.free_vars[-1].T, x_class,
+        n = len(self.nn_weights)
+        self.constraints += constraints_for_separating_hyperplane(self.free_vars(f"z{n}").T, x_class,
                                                                   adversarial_class,
                                                                   complement=True)
         return self.constraints
@@ -104,7 +106,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         if self.constraints == []:
             self.constraints_for_point(x, verbose=verbose)
 
-        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars[0]))
+        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
         self.prob = cp.Problem(obj, self.constraints)
         logging.debug("Constraints")
         logging.debug(self.str_constraints())
@@ -140,11 +142,11 @@ if __name__ == '__main__':
     is_robust = ilp.verify_at_point(x=x, eps=eps)
 
     if is_robust:
-        im_adv = f(torch.tensor(ilp.z0.value).T.float()).detach().numpy()
+        im_adv = f(torch.tensor(ilp.free_vars('z0').value).T.float()).detach().numpy()
         fx = f(torch.tensor(x).T.float()).detach().numpy()
         logging.info(f"Identity map is ({eps})-robust at x={x}. epsilon-hat={ilp.prob.value} > epsilon={eps}")
-        logging.info(f"Best z0:\n{ilp.z0.value}")
+        logging.info(f"Best z0:\n{ilp.free_vars('z0').value}")
     else:
         logging.debug(ilp.str_constraints())
-        logging.info(f"Best z0: {ilp.z0.value}")
+        logging.info(f"Best z0: {ilp.free_vars('z0').value}")
         logging.info(f"Identity map is NOT ({eps})-robust at x={x}: epsilon_hat: {ilp.prob.value}")
