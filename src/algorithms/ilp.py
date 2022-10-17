@@ -15,7 +15,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
-    def build_constraints_for_point(self, x, verbose=False):
+    def constraints_for_point(self, x, verbose=False):
         # use ILP to verify all x' within eps inf norm of x
         # are classified the same as x'
         # (ie: f(x) == f(x') for all x' in inf-norm ball centered at x
@@ -28,7 +28,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
         self.free_vars = [cp.Variable(_im_x.shape, name='z0')]
-        self.opt_var = self.free_vars[0]
+        self.z0 = self.free_vars[0]
 
         # propogate x layer by layer through f
         # 1) add constraints for affine transforms
@@ -40,8 +40,8 @@ class IteratedLinearVerifier(AbstractVerifier):
 
             # add constraint for affine transformation
             self.free_vars.append(cp.Variable((Wi.shape[0],1), f"z{i+1}_hat"))
-            logging.debug(self.free_vars[-1] == Wi @ self.free_vars[-2] + bi)
             self.constraints += [self.free_vars[-1] == Wi @ self.free_vars[-2] + bi]
+            logging.debug(self.constraints[-1])
 
             # propogate reference point
             _im_x = Wi @ _im_x + bi
@@ -100,9 +100,9 @@ class IteratedLinearVerifier(AbstractVerifier):
                                                                   complement=True)
         return self.constraints
 
-    def build_problem_for_point(self, x, verbose=False):
+    def problem_for_point(self, x, verbose=False):
         if self.constraints == []:
-            self.build_constraints_for_point(x, verbose=verbose)
+            self.constraints_for_point(x, verbose=verbose)
 
         obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars[0]))
         self.prob = cp.Problem(obj, self.constraints)
@@ -121,7 +121,7 @@ class IteratedLinearVerifier(AbstractVerifier):
             raise Exception(status)
 
     def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False):
-        self.build_problem_for_point(x=x, verbose=verbose)
+        self.problem_for_point(x=x, verbose=verbose)
         try:
             eps_hat = self.robustness_at_point(x, verbose=verbose)
             if eps_hat < eps:
@@ -139,13 +139,12 @@ if __name__ == '__main__':
     x = [[9], [0]]
     is_robust = ilp.verify_at_point(x=x, eps=eps)
 
-    # TODO: need some tolerance built in?
     if is_robust:
-        im_adv = f(torch.tensor(ilp.opt_var.value).T.float()).detach().numpy()
+        im_adv = f(torch.tensor(ilp.z0.value).T.float()).detach().numpy()
         fx = f(torch.tensor(x).T.float()).detach().numpy()
         logging.info(f"Identity map is ({eps})-robust at x={x}. epsilon-hat={ilp.prob.value} > epsilon={eps}")
-        logging.info(f"Best z0:\n{ilp.opt_var.value}")
+        logging.info(f"Best z0:\n{ilp.z0.value}")
     else:
         logging.debug(ilp.str_constraints())
-        logging.info(f"Best z0: {ilp.opt_var.value}")
+        logging.info(f"Best z0: {ilp.z0.value}")
         logging.info(f"Identity map is NOT ({eps})-robust at x={x}: epsilon_hat: {ilp.prob.value}")
