@@ -24,7 +24,11 @@ class AbstractVerifier():
             return [v.name() for v in self._free_vars]
         if var_name is None:
             return self._free_vars
-        return [v for v in self._free_vars if v.name() == var_name][0]
+        try:
+            return [v for v in self._free_vars if v.name() == var_name][0]
+        except IndexError:
+            s = f"{var_name} not in free vars."
+            raise Exception(s)
 
     def str_constraints(self):
         return str_constraints(self.constraints)
