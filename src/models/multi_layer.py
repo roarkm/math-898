@@ -5,8 +5,9 @@ import numpy as np
 
 class MultiLayerNN(nn.Module):
 
-    def __init__(self, weights, bias_vecs):
+    def __init__(self, weights, bias_vecs, name='GenericNN'):
         super(MultiLayerNN, self).__init__()
+        self.name = name
         self.relu = nn.ReLU()
         self.layers = nn.ModuleList()
         self.init_weights(weights, bias_vecs)
@@ -15,7 +16,8 @@ class MultiLayerNN(nn.Module):
     def __str__(self):
         in_dim = self.layers[0].weight.data.shape[1]
         out_dim = self.layers[-1].weight.data.shape[0]
-        s = f"f:R^{in_dim} -> R^{out_dim} \n"
+        s = self.name
+        s += f"f:R^{in_dim} -> R^{out_dim} \n"
         for i, l in enumerate(self.layers):
             if isinstance(l, nn.Linear):
                 s += f"W{int(i/2)}: {l.weight.data} \n"
@@ -63,7 +65,7 @@ def identity_map(dim, nlayers):
         # build an identity dim x dim matrix
         weights.append(np.eye(dim))
         bias_vecs.append(np.zeros((dim, 1)))
-    f = MultiLayerNN(weights, bias_vecs)
+    f = MultiLayerNN(weights, bias_vecs, name='Identity Map')
     return f
 
 
@@ -79,7 +81,7 @@ def null_map(in_dim, out_dim, nlayers = 3):
             # last layer
             weights.append(np.zeros((out_dim, in_dim)))
             bias_vecs.append(np.zeros((out_dim, 1)))
-    f = MultiLayerNN(weights, bias_vecs)
+    f = MultiLayerNN(weights, bias_vecs, name='Null Map')
     return f
 
 
