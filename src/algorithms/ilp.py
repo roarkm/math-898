@@ -12,6 +12,7 @@ class IteratedLinearVerifier(AbstractVerifier):
 
     def __init__(self, f=None):
         super(IteratedLinearVerifier, self).__init__(f)
+        self.name = 'ILP'
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
