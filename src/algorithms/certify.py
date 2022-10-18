@@ -17,6 +17,7 @@ class Certify(AbstractVerifier):
 
     def __init__(self, f=None):
         super(Certify, self).__init__(f)
+        self.name = 'Certify'
         logging.basicConfig(format='Certify-%(levelname)s:\n%(message)s', level=logging.INFO)
 
     def __str__(self):
