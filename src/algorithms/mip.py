@@ -14,6 +14,7 @@ class MIPVerifier(AbstractVerifier):
 
     def __init__(self, f=None):
         super(MIPVerifier, self).__init__(f)
+        self.name = 'NSVerify'
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
