@@ -49,43 +49,40 @@ class IteratedLinearVerifier(AbstractVerifier):
             logging.debug(f"After layer {i} affine T - shape={_im_x.shape}")
             logging.debug(_im_x)
 
-            # for all but the last layer
-            # TODO: Do not assume last layer has no ReLU (how to verify?)
-            if i < len(self.nn_weights):
-                # add constraints for ReLU activation pattern
-                self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
+            # add constraints for ReLU activation pattern
+            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
 
-                # build indicator vector to encode inequality
-                # constraint on zi_hat as dot product
-                delta = np.zeros((1, len(_im_x)))
-                beta  = np.zeros((1, len(_im_x)))
-                for j, _im_x_j in enumerate(_im_x):
-                    logging.debug(f"layer-{i}, _im_x[{j}] = {_im_x_j[0]}")
-                    # continue
-                    if _im_x_j[0] >= 0:
-                        # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
-                        delta[0,j] = 1
-                        # constraint zi == zi_hat
-                        beta[0,j] = 1
-                    else:
-                        # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
-                        delta[0,j] = -1
-                        # constraint zi == 0
-                        beta[0,j] = 0
+            # build indicator vector to encode inequality
+            # constraint on zi_hat as dot product
+            delta = np.zeros((1, len(_im_x)))
+            beta  = np.zeros((1, len(_im_x)))
+            for j, _im_x_j in enumerate(_im_x):
+                logging.debug(f"layer-{i}, _im_x[{j}] = {_im_x_j[0]}")
+                # continue
+                if _im_x_j[0] >= 0:
+                    # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
+                    delta[0,j] = 1
+                    # constraint zi == zi_hat
+                    beta[0,j] = 1
+                else:
+                    # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
+                    delta[0,j] = -1
+                    # constraint zi == 0
+                    beta[0,j] = 0
 
-                # constraint (zi_hat >= 0 OR zi_hat < 0)
-                self.constraints += [delta @ self.free_vars(f"z{i}_hat") >= 0]
+            # constraint (zi_hat >= 0 OR zi_hat < 0)
+            self.constraints += [delta @ self.free_vars(f"z{i}_hat") >= 0]
 
-                # constraint (xi == zi_hat OR xi == 0)
-                self.constraints += [self.free_vars(f"z{i}") == beta @ self.free_vars(f"z{i}_hat")]
-                logging.debug(self.constraints[-1])
+            # constraint (xi == zi_hat OR xi == 0)
+            self.constraints += [self.free_vars(f"z{i}") == beta @ self.free_vars(f"z{i}_hat")]
+            logging.debug(self.constraints[-1])
 
-                # continue propogating reference point through f
-                logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
-                logging.debug(_im_x)
-                _im_x = np.array(self.relu(torch.tensor(_im_x)))
-                logging.debug(f"After relu at layer {i}: shape={_im_x.shape}")
-                logging.debug(_im_x)
+            # continue propogating reference point through f
+            logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
+            logging.debug(_im_x)
+            _im_x = np.array(self.relu(torch.tensor(_im_x)))
+            logging.debug(f"After relu at layer {i}: shape={_im_x.shape}")
+            logging.debug(_im_x)
 
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
