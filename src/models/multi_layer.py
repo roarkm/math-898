@@ -48,8 +48,7 @@ class MultiLayerNN(nn.Module):
                 l.weight.copy_(torch.tensor(w))
                 l.bias.copy_(torch.tensor(b))
                 self.layers.append(l)
-                if i != len(weights)-1:
-                    self.layers.append(self.relu)
+                self.layers.append(self.relu)
         return
 
     def forward(self, x):
