@@ -63,7 +63,7 @@ class Certify(AbstractVerifier):
         logging.info("X =")
         logging.info(sp.pretty(X))
 
-    def verify_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
+    def constraints_for_point(self, x, eps, verbose=False):
         x = np.array(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         x_class = np.argmax(im_x)
@@ -71,56 +71,59 @@ class Certify(AbstractVerifier):
         d = 0
         c = self.sep_hplane_for_advclass(x, complement=True)
 
-        P, constraints, _ = _relaxation_for_hypercube(center=x, epsilon=eps)
-        dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
-        Q, constraints = _build_Q_for_relu(dim=dim, constraints=constraints)
-        S = _relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
+        self.P, self.constraints, _ = _relaxation_for_hypercube(center=x, epsilon=eps)
 
-        M_in_P = build_M_in(P, self.nn_weights, self.nn_bias_vecs)
-        M_mid_Q, constraints = build_M_mid(Q=Q, constraints=constraints,
+        dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
+        self.Q, self.constraints = _build_Q_for_relu(dim=dim, constraints=self.constraints)
+        self.S = _relaxation_for_half_space(c=c, d=d, dim_x=self.nn_weights[0].shape[1])
+
+        M_in_P = build_M_in(self.P, self.nn_weights, self.nn_bias_vecs)
+        M_mid_Q, self.constraints = build_M_mid(Q=self.Q, constraints=self.constraints,
                                            weights=self.nn_weights,
                                            bias_vecs=self.nn_bias_vecs)
-        M_out_S = build_M_out(S, self.nn_weights, self.nn_bias_vecs)
+        M_out_S = build_M_out(self.S, self.nn_weights, self.nn_bias_vecs)
 
         X = M_in_P + M_mid_Q + M_out_S
+        self.constraints += [X << 0]
+        return self.constraints
 
-        constraints += [X << 0]
-        self.constraints = constraints
+    def verify_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
+
+        self.constraints_for_point(x=x, eps=eps, verbose=verbose)
 
         prob = cp.Problem(cp.Minimize(1), self.constraints)
         prob.solve(verbose=verbose, max_iters=max_iters, solver=cp.CVXOPT)
 
-        debug = ""
-        debug += f"f({x.T}) = {im_x} |--> class: {x_class}\n"
-        debug += f"{prob.status}\n"
+        # debug = ""
+        # debug += f"f({x.T}) = {im_x} |--> class: {x_class}\n"
+        # debug += f"{prob.status}\n"
         status = prob.status
         if status == cp.OPTIMAL:
-            debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
+            # debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
-            self.P = P.value
+            self.P = self.P.value
             # TODO: verify 0-level set of P contains region of interest
             # (test corner points)
-            self.Q = Q.value
+            self.Q = self.Q.value
             # TODO: verify 0-level set of S contains safety set
             # (how to test for halfspace?)
-            self.S = S
         elif status == cp.OPTIMAL_INACCURATE:
-            debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
+            # debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
             verified = True
         elif status == cp.INFEASIBLE:
             # How to check if this is a false negative? 
             # (maybe the relaxations aren't tight enough)
-            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
+            # debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
         else:
-            debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
+            # debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
             verified = False
 
-        if verbose:
-            if verified:
-                debug += f"P =\n {P.value}\n"
-                debug += f"Q =\n {Q.value}\n"
-            logging.debug(debug)
+        # if verbose:
+            # if verified:
+                # debug += f"P =\n {P.value}\n"
+                # debug += f"Q =\n {Q.value}\n"
+            # logging.debug(debug)
         return verified
 
 
@@ -483,9 +486,10 @@ if __name__ == '__main__':
     f = identity_map(2, 2)
     cert = Certify(f)
     eps = 0.5
-    cert.build_symbolic_matrices(x=x, eps=eps)
+    # cert.build_symbolic_matrices(x=x, eps=eps)
+    # exit()
+    is_robust = cert.verify_at_point(x=x, eps=eps, verbose=True, max_iters=10**4)
     exit()
-    # is_robust = cert.verify_at_point(x=x, eps=eps, verbose=True, max_iters=10**k)
     for k in range(1, 6):
         # is_robust = cert.verify_at_point(x=x, eps=eps, max_iters=10**k)
         is_robust = cert.verify_at_point(x=x, eps=eps)
