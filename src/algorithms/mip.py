@@ -43,25 +43,22 @@ class MIPVerifier(AbstractVerifier):
             self.constraints += [self.free_vars(f"z{i}_hat") == Wi @ self.free_vars(f"z{i-1}") + bi]
             logging.debug(self.constraints[-1])
 
-            # for all but the last layer
-            # TODO: Do not assume last layer has no ReLU (how to verify?)
-            if i < len(self.nn_weights):
-                self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
-                self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
-                self.add_free_var(cp.Variable((Wi.shape[0],1), f"d{i}", integer=True))
+            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
+            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
+            self.add_free_var(cp.Variable((Wi.shape[0],1), f"d{i}", integer=True))
 
-                # d_ij in {0,1}
-                self.constraints += [self.free_vars(f"d{i}") >= 0]
-                self.constraints += [self.free_vars(f"d{i}") <= 1]
+            # d_ij in {0,1}
+            self.constraints += [self.free_vars(f"d{i}") >= 0]
+            self.constraints += [self.free_vars(f"d{i}") <= 1]
 
-                # z_ij >= z_ij_hat
-                self.constraints += [self.free_vars(f"z{i}") >= self.free_vars(f"z{i}_hat")]
+            # z_ij >= z_ij_hat
+            self.constraints += [self.free_vars(f"z{i}") >= self.free_vars(f"z{i}_hat")]
 
-                # z_ij_hat < 0 implies d_ij == 0    iff    -z_ij <= M * (1 - d_ij)
-                self.constraints += [-1*self.free_vars(f"z{i}_hat") <= M*(np.ones((Wi.shape[0], 1))-self.free_vars(f"d{i}"))]
+            # z_ij_hat < 0 implies d_ij == 0    iff    -z_ij <= M * (1 - d_ij)
+            self.constraints += [-1*self.free_vars(f"z{i}_hat") <= M*(np.ones((Wi.shape[0], 1))-self.free_vars(f"d{i}"))]
 
-                # z_ij_hat > 0 implies d_ij == 1    iff    z_ij <= M * d_ij
-                self.constraints += [self.free_vars(f"z{i}_hat") <= M * self.free_vars(f"d{i}")]
+            # z_ij_hat > 0 implies d_ij == 1    iff    z_ij <= M * d_ij
+            self.constraints += [self.free_vars(f"z{i}_hat") <= M * self.free_vars(f"d{i}")]
 
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
