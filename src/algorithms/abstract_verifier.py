@@ -8,11 +8,27 @@ class AbstractVerifier():
 
     def __init__(self, f=None):
         self.f = f
-        self.constraints = []
+        self.name = 'AbstractVerifier'
+        self._constraints = {}
         self._free_vars = []
         self.relu = nn.ReLU()
         if f:
             self.nn_weights, self.nn_bias_vecs = weights_from_nn(self.f)
+
+    def add_constraint(self, constr, layer_id, constr_type, alg_type):
+        self._constraints[(layer_id, constr_type, alg_type)] = constr
+
+    def get_constraints(self, layer_id=None, constr_type=None, alg_type=None):
+        if len(self._constraints) == 0:
+            return []
+        _c = self._constraints
+        if layer_id is not None:
+            _c = {k:v for (k,v) in _c.items() if k[0] == layer_id}
+        if constr_type is not None:
+            _c = {k:v for (k,v) in _c.items() if k[1] == constr_type}
+        if alg_type is not None:
+            _c = {k:v for (k,v) in _c.items() if k[2] == alg_type}
+        return list(_c.values())
 
     def add_free_var(self, var):
         self._free_vars.append(var)
@@ -31,7 +47,7 @@ class AbstractVerifier():
             raise Exception(s)
 
     def str_constraints(self):
-        return str_constraints(self.constraints)
+        return str_constraints(self.get_constraints())
 
     def __str__(self):
         s = ''
@@ -174,3 +190,14 @@ def weights_from_nn(f):
     return weights, bias_vecs
 
 
+if __name__ == '__main__':
+    av = AbstractVerifier()
+    av.add_constraint('MyConstr0_ReLU_ILP',
+                      layer_id=0, constr_type='relu', alg_type='ilp')
+    av.add_constraint('MyConstr0_ReLU_MIP',
+                      layer_id=0, constr_type='relu', alg_type='mip')
+    av.add_constraint('MyConstr0_Affine_ILP',
+                      layer_id=0, constr_type='affine', alg_type='ilp')
+    av.add_constraint('MyConstr1_Affine_ILP',
+                      layer_id=1, constr_type='affine', alg_type='ilp')
+    print(av.str_constraints())
