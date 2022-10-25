@@ -169,8 +169,9 @@ def str_constraints(constraints):
         return "No Constraints."
     s = ""
     for c in constraints:
-        s += f"\nconstraint:\n"
+        s += f"constraint:\n"
         s += str(c)
+        s += "\n"
     return s
 
 
