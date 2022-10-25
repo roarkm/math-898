@@ -40,25 +40,43 @@ class MIPVerifier(AbstractVerifier):
             # add constraint for affine transformation
             self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
             # constrain pre-activation var with affine transformation
-            self.constraints += [self.free_vars(f"z{i}_hat") == Wi @ self.free_vars(f"z{i-1}") + bi]
-            logging.debug(self.constraints[-1])
+            self.add_constraint(self.free_vars(f"z{i}_hat") == Wi @ self.free_vars(f"z{i-1}") + bi,
+                                layer_id=i, constr_type='affine', alg_type='mip')
 
             self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
             self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
             self.add_free_var(cp.Variable((Wi.shape[0],1), f"d{i}", integer=True))
 
             # d_ij in {0,1}
-            self.constraints += [self.free_vars(f"d{i}") >= 0]
-            self.constraints += [self.free_vars(f"d{i}") <= 1]
+            self.add_constraint(self.free_vars(f"d{i}") >= 0,
+                                layer_id=i,
+                                constr_type='int_GT_0',
+                                alg_type='mip')
+            self.add_constraint(self.free_vars(f"d{i}") <= 1,
+                                layer_id=i,
+                                constr_type='int_LT_0',
+                                alg_type='mip')
 
             # z_ij >= z_ij_hat
-            self.constraints += [self.free_vars(f"z{i}") >= self.free_vars(f"z{i}_hat")]
+            self.add_constraint(self.free_vars(f"z{i}") >= self.free_vars(f"z{i}_hat"),
+                                layer_id=i,
+                                constr_type='relu_1',
+                                alg_type='mip')
 
             # z_ij_hat < 0 implies d_ij == 0    iff    -z_ij <= M * (1 - d_ij)
-            self.constraints += [-1*self.free_vars(f"z{i}_hat") <= M*(np.ones((Wi.shape[0], 1))-self.free_vars(f"d{i}"))]
+            _c = -1*self.free_vars(f"z{i}_hat") <= M*(np.ones((Wi.shape[0], 1))-self.free_vars(f"d{i}"))
+            self.add_constraint(_c,
+                                layer_id=i,
+                                constr_type='relu_2',
+                                alg_type='mip')
 
             # z_ij_hat > 0 implies d_ij == 1    iff    z_ij <= M * d_ij
-            self.constraints += [self.free_vars(f"z{i}_hat") <= M * self.free_vars(f"d{i}")]
+            _c = self.free_vars(f"z{i}_hat") <= M * self.free_vars(f"d{i}")
+            self.add_constraint(_c,
+                                layer_id=i,
+                                constr_type='relu_3',
+                                alg_type='mip')
+            logging.debug(self.str_constraints(layer_id=i))
 
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
@@ -68,22 +86,23 @@ class MIPVerifier(AbstractVerifier):
         _class_order = np.argsort(fx)[0]
         x_class = _class_order[-1]           # index of component with largest value
         adversarial_class = _class_order[-2] # index of component with second largest value
-        logging.debug(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
-        n = len(self.nn_weights)
-        # out_var = self.free_vars(f"z{n}").T      # TODO: if last layer ReLU
-        out_var = self.free_vars(f"z{n}_hat").T
 
-        self.constraints += constraints_for_separating_hyperplane(out_var, x_class,
-                                                                  adversarial_class,
-                                                                  complement=True)
-        return self.constraints
+        n = len(self.nn_weights) # depth of NN
+        out_var = self.free_vars(f"z{n}").T
+        _c = constraints_for_separating_hyperplane(out_var, x_class,
+                                                   adversarial_class,
+                                                   complement=True)
+        self.add_constraint(_c, layer_id=n,
+                            constr_type='safety_set',
+                            alg_type='ilp')
+        return self.get_constraints()
 
     def build_problem_for_point(self, x, verbose=False):
-        if self.constraints == []:
+        if self.get_constraints() == []:
             self.constraints_for_network(verbose=verbose)
 
         obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
-        self.prob = cp.Problem(obj, self.constraints)
+        self.prob = cp.Problem(obj, self.get_constraints())
         logging.debug("Constraints")
         logging.debug(self.str_constraints())
 
