@@ -24,10 +24,10 @@ class IteratedLinearVerifier(AbstractVerifier):
         assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
         _im_x = np.reshape(np.array(x), (len(x), 1))
-        logging.debug(f"Building for x = \n{_im_x}")
 
         # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
+        # TODO: optionally use constraints for region of interest
         self.add_free_var(cp.Variable(_im_x.shape, name='z0'))
 
         # propogate x layer by layer through f
@@ -40,9 +40,15 @@ class IteratedLinearVerifier(AbstractVerifier):
 
             # add constraint for affine transformation
             self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
+            self.add_constraint(self.free_vars(f"z{i}_hat") == Wi @ self.free_vars(f"z{i-1}") + bi,
+                                layer_id=i,
+                                constr_type='affine',
+                                alg_type='ilp')
+
             logging.debug(self.free_vars(names_only=True))
-            self.constraints += [self.free_vars(f"z{i}_hat") == Wi @ self.free_vars(f"z{i-1}") + bi]
-            logging.debug(self.constraints[-1])
+            logging.debug(self.str_constraints(layer_id=i,
+                                               constr_type='affine',
+                                               alg_type='ilp'))
 
             # propogate reference point
             _im_x = Wi @ _im_x + bi
@@ -57,32 +63,32 @@ class IteratedLinearVerifier(AbstractVerifier):
             delta = np.zeros((1, len(_im_x)))
             beta  = np.zeros((1, len(_im_x)))
             for j, _im_x_j in enumerate(_im_x):
-                logging.debug(f"layer-{i}, _im_x[{j}] = {_im_x_j[0]}")
-                # continue
                 if _im_x_j[0] >= 0:
-                    # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
-                    delta[0,j] = 1
-                    # constraint zi == zi_hat
-                    beta[0,j] = 1
+                    delta[0,j] = 1 # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
+                    beta[0,j] = 1  # constraint zi == zi_hat
                 else:
-                    # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
-                    delta[0,j] = -1
-                    # constraint zi == 0
-                    beta[0,j] = 0
+                    delta[0,j] = -1 # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
+                    beta[0,j] = 0   # constraint zi == 0
 
             # constraint (zi_hat >= 0 OR zi_hat < 0)
-            self.constraints += [delta @ self.free_vars(f"z{i}_hat") >= 0]
+            self.add_constraint(delta @ self.free_vars(f"z{i}_hat") >= 0,
+                                layer_id=i,
+                                constr_type='relu_1',
+                                alg_type='ilp')
 
             # constraint (xi == zi_hat OR xi == 0)
-            self.constraints += [self.free_vars(f"z{i}") == beta @ self.free_vars(f"z{i}_hat")]
-            logging.debug(self.constraints[-1])
+            self.add_constraint(self.free_vars(f"z{i}") == beta @ self.free_vars(f"z{i}_hat"),
+                                layer_id=i,
+                                constr_type='relu_2',
+                                alg_type='ilp')
+            logging.debug(self.str_constraints(layer_id=i,
+                                               constr_type='relu_2',
+                                               alg_type='ilp'))
 
             # continue propogating reference point through f
             logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
             logging.debug(_im_x)
             _im_x = np.array(self.relu(torch.tensor(_im_x)))
-            logging.debug(f"After relu at layer {i}: shape={_im_x.shape}")
-            logging.debug(_im_x)
 
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
@@ -94,20 +100,23 @@ class IteratedLinearVerifier(AbstractVerifier):
         x_class = _class_order[-1]           # index of component with largest value
         adversarial_class = _class_order[-2] # index of component with second largest value
         logging.debug(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
-        n = len(self.nn_weights)
-        # out_var = self.free_vars(f"z{n}").T      # TODO: if last layer ReLU
-        out_var = self.free_vars(f"z{n}_hat").T
-        self.constraints += constraints_for_separating_hyperplane(out_var, x_class,
+
+        n = len(self.nn_weights) # depth of NN
+        out_var = self.free_vars(f"z{n}").T
+        hplane_constraint = constraints_for_separating_hyperplane(out_var, x_class,
                                                                   adversarial_class,
                                                                   complement=True)
-        return self.constraints
+        self.add_constraint(hplane_constraint, layer_id=n,
+                            constr_type=f"safety_set",
+                            alg_type='ilp')
+        return self.get_constraints()
 
     def problem_for_point(self, x, verbose=False):
-        if self.constraints == []:
+        if self.get_constraints() == []:
             self.constraints_for_point(x, verbose=verbose)
 
         obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
-        self.prob = cp.Problem(obj, self.constraints)
+        self.prob = cp.Problem(obj, self.get_constraints())
         logging.debug("Constraints")
         logging.debug(self.str_constraints())
 

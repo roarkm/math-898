@@ -46,8 +46,10 @@ class AbstractVerifier():
             s = f"{var_name} not in free vars."
             raise Exception(s)
 
-    def str_constraints(self):
-        return str_constraints(self.get_constraints())
+    def str_constraints(self, layer_id=None, constr_type=None, alg_type=None):
+        return str_constraints(self.get_constraints(layer_id=layer_id,
+                                                    constr_type=constr_type,
+                                                    alg_type=alg_type))
 
     def __str__(self):
         s = ''
@@ -92,7 +94,7 @@ def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
     c = _vector_for_separating_hyperplane(large_index, small_index,
                                           opt_vars.shape[1],
                                           complement=complement)
-    return [c @ opt_vars >= np.zeros((1,1))]
+    return c @ opt_vars >= np.zeros((1,1))
 
 
 def mat_for_k_class_polytope(k, dim, complement=False):
@@ -200,4 +202,4 @@ if __name__ == '__main__':
                       layer_id=0, constr_type='affine', alg_type='ilp')
     av.add_constraint('MyConstr1_Affine_ILP',
                       layer_id=1, constr_type='affine', alg_type='ilp')
-    print(av.str_constraints())
+    print(av.str_constraints(layer_id=0))
