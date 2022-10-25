@@ -1,7 +1,9 @@
 from src.models.multi_layer import MultiLayerNN, identity_map
 from src.algorithms.certify import Certify, _relaxation_for_hypercube, _relaxation_for_half_space
 from matplotlib.patches import Ellipse
-from src.algorithms.abstract_verifier import constraints_for_separating_hyperplane, str_constraints, constraints_for_inf_ball
+from src.algorithms.abstract_verifier import (constraints_for_separating_hyperplane,
+                                              str_constraints,
+                                              constraints_for_inf_ball)
 
 # from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
@@ -50,7 +52,7 @@ def plot_inf_ball(center, eps, values={'set':1, 'not_set':0},
     # constr, free_vars = constraints_for_inf_ball(center, eps, free_vars=free_vars)
     constr, free_vars = constraints_for_inf_ball(center, eps)
 
-    ball_ind = make_set_indicator(constr, free_vars, values=values)
+    ball_ind = make_set_indicator([constr], free_vars, values=values)
 
     # TODO: parameterize the canvas size
     _x1, _x2 = np.arange(-1, 3, resolution), np.arange(-1, 3, resolution)
@@ -138,15 +140,16 @@ def plot_relu(resolution=0.01):
 
 
 if __name__ == '__main__':
-    plot_relu()
-    exit()
+    # plot_relu()
+    # exit()
     center = np.array([[1], [1]])
     eps = 0.8
     # g_vals = np.array([9, 2])
     g_vals = 100 * np.random.random_sample(center.shape[0])
     P, _, _ = _relaxation_for_hypercube(center, eps, values=g_vals)
-    plot_inf_ball(center, eps, resolution=0.05, relaxation_matrix=P.value)
-    # exit()
+    # plot_inf_ball(center, eps, resolution=0.05, relaxation_matrix=P.value)
+    plot_inf_ball(center, eps, resolution=0.08, relaxation_matrix=P.value)
+    exit()
 
     c = np.array([[-1], [1]])
     d = 0
