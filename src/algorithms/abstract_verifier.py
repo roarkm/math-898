@@ -124,7 +124,7 @@ def constraints_for_k_class_polytope(k, x, verbose=False, complement=False):
     # returns a list containing the inequality constraints in matrix form
     z = cp.bmat([cp.Variable(len(x), name='z')]).T
     A, b = mat_for_k_class_polytope(k, len(x), complement)
-    return [A @ z >= b]
+    return A @ z >= b
 
 
 def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
@@ -161,7 +161,7 @@ def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
             A_lt = np.vstack([A_lt, row])
             _a = np.matrix([[ -1 * (float(center[i][0]) - eps) ]])
             b_vec = np.vstack([b_vec, _a])
-    return [A_lt @ free_vars <= b_vec], free_vars
+    return A_lt @ free_vars <= b_vec, free_vars
 
 
 def str_constraints(constraints):
