@@ -14,6 +14,7 @@ from matplotlib.colors import ListedColormap
 import cvxpy as cp
 import numpy as np
 import math
+import sys
 import logging
 
 
@@ -21,9 +22,9 @@ def plot_relu_for_constrained_region(constraints, free_vars,
                                      values={'set':1, 'img':1, 'not_set':0, 'not_img':0},
                                      colors={'bkgrnd':  (0.0, 0.0, 0.0, 0.0),
                                              'set':     (0.0, 0.0, 1.0, 1.0),
-                                             'img':     (0.0, 0.5, 0.5, 0.5),
+                                             'img':     (0.0, 0.0, 0.0, 1.0),
                                              'not_set': (0.0, 0.0, 0.0, 0.0),
-                                             'not_img': (1.0, 1.0, 1.0, 0.0)},
+                                             'not_img': (0.0, 0.0, 0.0, 0.0)},
                                      resolution=0.05,
                                      plot_boundaries={'t':10, 'r':10, 'b':-10, 'l':-10},
                                      plot_scale=1):
@@ -38,8 +39,6 @@ def plot_relu_for_constrained_region(constraints, free_vars,
     x1, x2  = np.meshgrid(_x1, _x2)
     extent = np.min(x1), np.max(x1), np.min(x2), np.max(x2)
 
-    max_x1, max_x2 = get_max_in_region(constr, free_vars, x1, x2)
-
     fig, ax = plt.subplots()
     ax.axis('equal')
     # plt.axhline(linestyle='--')
@@ -50,8 +49,10 @@ def plot_relu_for_constrained_region(constraints, free_vars,
     pre_img = make_set_indicator(constr, free_vars, values=values)
     z = pre_img(x1, x2)
     cmap = ListedColormap([colors['not_set'], colors['set']])
-    plt.imshow(z, interpolation='none', extent=extent, origin='lower', cmap=cmap)
+    plt.imshow(z, interpolation='none',
+               extent=extent, origin='lower', cmap=cmap)
 
+    max_x1, max_x2 = max_in_region(constr, free_vars, x1, x2)
     relu_img = make_relu_img_indicator(constr, free_vars, max_x1, max_x2, values=values)
     img_z = relu_img(x1, x2)
     cmap = ListedColormap([colors['not_img'], colors['img']])
@@ -71,11 +72,32 @@ def make_set_indicator(constraints, free_vars, values={'set':1, 'not_set':0}):
     return np.vectorize(indicator)
 
 
-def get_max_in_region(pre_img_constrs, free_vars, _x1, _x2):
+def min_in_region(pre_img_constrs, free_vars, _x1, _x2):
+    # create a function that will return the minimum
+    # x1, x2 that satisfy constraints
+    expr = cp.transforms.indicator(pre_img_constrs)
+
+    def min_of(x1, x2, mins):
+        # mutates mins
+        free_vars.value = np.array([[x1], [x2]])
+        if expr.value == 0:
+            if x2 <= mins['x2']:
+                mins['x2'] = x2
+            if x1 <= mins['x1']:
+                mins['x1'] = x1
+    m = np.vectorize(max_of)
+
+    mins = {'x1': sys.float_info.max, 'x2': sys.float_info.max}
+    m(_x1, _x2, mins)
+    return mins['x1'], mins['x2']
+
+
+def max_in_region(pre_img_constrs, free_vars, _x1, _x2):
     # create a function that will return the maximum
     # x1, x2 that satisfy constraints and are in the non-pos orthant
     expr = cp.transforms.indicator(pre_img_constrs)
     def max_of(x1, x2, maxes):
+        # mutates maxes
         if x1 <= 0 and x2 >= maxes['x2']:
             free_vars.value = np.array([[x1], [x2]])
             if expr.value == 0:
@@ -85,6 +107,7 @@ def get_max_in_region(pre_img_constrs, free_vars, _x1, _x2):
             if expr.value == 0:
                 maxes['x1'] = x1
     m = np.vectorize(max_of)
+
     maxes = {'x1':0, 'x2':0}
     m(_x1, _x2, maxes)
     return maxes['x1'], maxes['x2']
@@ -146,7 +169,7 @@ def plot_relu_R1(resolution=0.01):
 def constraints_for_polytope():
     # custom polytope
     A = np.array([
-        [1,  1],
+        [2,  1],
         [-1, 0],
         [0, -1]
     ])
@@ -164,7 +187,9 @@ if __name__ == '__main__':
     eps = 1
     constr, free_vars = constraints_for_polytope()
     logging.info(str_constraints(constr))
-    plot_relu_for_constrained_region(constr, free_vars, plot_scale=0.3, resolution=0.01)
+    plot_relu_for_constrained_region(constr, free_vars,
+                                     plot_boundaries={'t':3.5, 'r':1, 'b':-2, 'l':-1},
+                                     plot_scale=1, resolution=0.02)
     exit()
 
     # g_vals = np.array([9, 2])
