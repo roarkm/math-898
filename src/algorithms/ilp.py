@@ -115,17 +115,6 @@ class IteratedLinearVerifier(AbstractVerifier):
         logging.debug("Constraints")
         logging.debug(self.str_constraints())
 
-    def robustness_at_point(self, x, verbose=False):
-        self.prob.solve(verbose=verbose)
-        status = self.prob.status
-        if status == cp.OPTIMAL:
-            return self.prob.value
-        elif status == cp.OPTIMAL_INACCURATE:
-            logging.warning("Warning: inaccurate solution.")
-            return self.prob.value
-        else:
-            raise Exception(status)
-
 
 if __name__ == '__main__':
     f = identity_map(2,2)

@@ -93,6 +93,17 @@ class AbstractVerifier():
         except Exception as err:
             logging.critical(err)
 
+    def robustness_at_point(self, x, verbose=False):
+        self.prob.solve(verbose=verbose)
+        status = self.prob.status
+        if status == cp.OPTIMAL:
+            return self.prob.value
+        elif status == cp.OPTIMAL_INACCURATE:
+            logging.warning("Warning: inaccurate solution.")
+            return self.prob.value
+        else:
+            raise Exception(status)
+
 
 
 def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
