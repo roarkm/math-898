@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import logging
 
-
 class AbstractVerifier():
 
     def __init__(self, f=None):
@@ -83,6 +82,17 @@ class AbstractVerifier():
                                                  small_index=adversarial_class,
                                                  n=fx.shape[1],
                                                  complement=complement)
+
+    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False, tol=10**(-4)):
+        self.problem_for_point(x=x, verbose=verbose)
+        try:
+            eps_hat = self.robustness_at_point(x, verbose=verbose)
+            if eps_hat < eps - tol:
+                return False
+            return True
+        except Exception as err:
+            logging.critical(err)
+
 
 
 def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):

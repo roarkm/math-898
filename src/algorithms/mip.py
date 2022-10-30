@@ -95,7 +95,7 @@ class MIPVerifier(AbstractVerifier):
                             alg_type='ilp')
         return self.get_constraints()
 
-    def build_problem_for_point(self, x, verbose=False):
+    def problem_for_point(self, x, verbose=False):
         if self.get_constraints() == []:
             self.constraints_for_network(verbose=verbose)
 
@@ -114,16 +114,6 @@ class MIPVerifier(AbstractVerifier):
             return self.prob.value
         else:
             raise Exception(status)
-
-    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False, tol=10**(-4)):
-        self.build_problem_for_point(x=x, verbose=verbose)
-        try:
-            eps_hat = self.robustness_at_point(x, verbose=verbose)
-            if eps_hat < eps - tol:
-                return False
-            return True
-        except Exception as err:
-            logging.critical(err)
 
 
 if __name__ == '__main__':

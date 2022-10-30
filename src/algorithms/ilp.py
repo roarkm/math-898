@@ -126,17 +126,6 @@ class IteratedLinearVerifier(AbstractVerifier):
         else:
             raise Exception(status)
 
-    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False, tol=10**(-4)):
-        self.problem_for_point(x=x, verbose=verbose)
-        try:
-            eps_hat = self.robustness_at_point(x, verbose=verbose)
-            if eps_hat < eps - tol:
-                return False
-            return True
-        except Exception as err:
-            logging.critical(err)
-
-
 
 if __name__ == '__main__':
     f = identity_map(2,2)
