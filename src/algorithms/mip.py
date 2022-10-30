@@ -79,11 +79,7 @@ class MIPVerifier(AbstractVerifier):
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
         # and the next highest component
-        fx = self.f(torch.tensor(x).T.float()).detach().numpy()
-
-        _class_order = np.argsort(fx)[0]
-        x_class = _class_order[-1]           # index of component with largest value
-        adversarial_class = _class_order[-2] # index of component with second largest value
+        x_class, adversarial_class = self.top_two_classes(x)
 
         n = len(self.nn_weights) # depth of NN
         out_var = self.free_vars(f"z{n}").T

@@ -91,10 +91,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         fx = self.f(torch.tensor(x).T.float()).detach().numpy()
         assert np.array_equal(_im_x, fx.T) == True # sanity check
 
-        _class_order = np.argsort(fx)[0]
-        x_class = _class_order[-1]           # index of component with largest value
-        adversarial_class = _class_order[-2] # index of component with second largest value
-        logging.debug(f"f({x}) = {fx} => Want z_{adversarial_class} > z_{x_class}")
+        x_class, adversarial_class = self.top_two_classes(x)
 
         n = len(self.nn_weights) # depth of NN
         out_var = self.free_vars(f"z{n}").T

@@ -15,16 +15,19 @@ class AbstractVerifier():
         if f:
             self.nn_weights, self.nn_bias_vecs = weights_from_nn(self.f)
 
-    def constraints_for_affine_layer(self, W, b, layer_id):
-        # add constraint for affine transformation
-        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
-        self.add_constraint(
-            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
-            layer_id=layer_id, constr_type='affine', alg_type=self.name)
+    def __str__(self):
+        s = ''
+        if not self.f:
+            s += "No nn provided."
+        else:
+            s += f"f:R^{self.nn_weights[0].shape[1]} -> R^{self.nn_weights[-1].shape[0]}"
+            s += f"\t{len(self.nn_weights)} layers"
+        return s
 
-        logging.debug(self.free_vars(names_only=True))
-        logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='mip'))
-
+    def str_constraints(self, layer_id=None, constr_type=None, alg_type=None):
+        return str_constraints(self.get_constraints(layer_id=layer_id,
+                                                    constr_type=constr_type,
+                                                    alg_type=alg_type))
 
     def add_constraint(self, constr, layer_id, constr_type, alg_type):
         self._constraints[(layer_id, constr_type, alg_type)] = constr
@@ -57,20 +60,6 @@ class AbstractVerifier():
             s = f"{var_name} not in free vars."
             raise Exception(s)
 
-    def str_constraints(self, layer_id=None, constr_type=None, alg_type=None):
-        return str_constraints(self.get_constraints(layer_id=layer_id,
-                                                    constr_type=constr_type,
-                                                    alg_type=alg_type))
-
-    def __str__(self):
-        s = ''
-        if not self.f:
-            s += "No nn provided."
-        else:
-            s += f"f:R^{self.nn_weights[0].shape[1]} -> R^{self.nn_weights[-1].shape[0]}"
-            s += f"\t{len(self.nn_weights)} layers"
-        return s
-
     def sep_hplane_for_advclass(self, x, complement=False):
         fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()
         class_order = np.argsort(fx)[0]
@@ -82,6 +71,16 @@ class AbstractVerifier():
                                                  small_index=adversarial_class,
                                                  n=fx.shape[1],
                                                  complement=complement)
+
+    def constraints_for_affine_layer(self, W, b, layer_id):
+        # add constraint for affine transformation
+        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
+        self.add_constraint(
+            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
+            layer_id=layer_id, constr_type='affine', alg_type=self.name)
+
+        logging.debug(self.free_vars(names_only=True))
+        logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='mip'))
 
     def robustness_at_point(self, x, verbose=False):
         self.prob.solve(verbose=verbose)
@@ -113,6 +112,13 @@ class AbstractVerifier():
             return True
         except Exception as err:
             logging.critical(err)
+
+    def top_two_classes(self, x):
+        fx = self.f(torch.tensor(x).T.float()).detach().numpy()
+        _class_order = np.argsort(fx)[0]
+        x_class = _class_order[-1]           # index of component with largest value
+        adversarial_class = _class_order[-2] # index of component with second largest value
+        return x_class, adversarial_class
 
 
 def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
