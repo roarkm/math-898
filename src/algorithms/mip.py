@@ -19,16 +19,6 @@ class MIPVerifier(AbstractVerifier):
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
-    def constraints_for_affine_layer(self, W, b, layer_id):
-        # add constraint for affine transformation
-        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
-        self.add_constraint(
-            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
-            layer_id=layer_id, constr_type='affine', alg_type='mip')
-
-        logging.debug(self.free_vars(names_only=True))
-        logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='mip'))
-
     def constraints_for_relu(self, Wi, layer_id):
         self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}_hat")) # pre-activation
         self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}")) # post-activation

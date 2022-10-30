@@ -16,17 +16,6 @@ class IteratedLinearVerifier(AbstractVerifier):
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
-    def constraints_for_affine_layer(self, W, b, layer_id):
-        # add constraint for affine transformation
-        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
-        self.add_constraint(
-            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
-            layer_id=layer_id, constr_type='affine', alg_type='ilp')
-
-        logging.debug(self.free_vars(names_only=True))
-        logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='ilp'))
-
-
     def constraints_for_relu(self, im_x, layer_id):
         # add constraints for ReLU activation pattern
         self.add_free_var(cp.Variable((im_x.shape[0],1), f"z{layer_id}")) # post-activation
@@ -75,11 +64,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         # TODO: optionally use constraints for region of interest
         self.add_free_var(cp.Variable(_im_x.shape, name='z0'))
 
-        # propogate x layer by layer through f
-        # 1) add constraints for affine transforms
-        # 2) add constraints for ReLU activation pattern
         for i in range(1, len(self.nn_weights)+1):
-
             # Get layer weights and bias vec
             Wi = self.nn_weights[i-1]
             _bi = self.nn_bias_vecs[i-1]

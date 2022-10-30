@@ -2,6 +2,7 @@ import cvxpy as cp
 import numpy as np
 import torch
 import torch.nn as nn
+import logging
 
 
 class AbstractVerifier():
@@ -14,6 +15,17 @@ class AbstractVerifier():
         self.relu = nn.ReLU()
         if f:
             self.nn_weights, self.nn_bias_vecs = weights_from_nn(self.f)
+
+    def constraints_for_affine_layer(self, W, b, layer_id):
+        # add constraint for affine transformation
+        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
+        self.add_constraint(
+            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
+            layer_id=layer_id, constr_type='affine', alg_type=self.name)
+
+        logging.debug(self.free_vars(names_only=True))
+        logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='mip'))
+
 
     def add_constraint(self, constr, layer_id, constr_type, alg_type):
         self._constraints[(layer_id, constr_type, alg_type)] = constr
