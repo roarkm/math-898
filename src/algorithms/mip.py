@@ -117,11 +117,11 @@ class MIPVerifier(AbstractVerifier):
         else:
             raise Exception(status)
 
-    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False):
+    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False, tol=10**(-4)):
         self.build_problem_for_point(x=x, verbose=verbose)
         try:
             eps_hat = self.robustness_at_point(x, verbose=verbose)
-            if eps_hat < eps:
+            if eps_hat < eps - tol:
                 return False
             return True
         except Exception as err:
