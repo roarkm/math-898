@@ -26,6 +26,41 @@ class IteratedLinearVerifier(AbstractVerifier):
         logging.debug(self.free_vars(names_only=True))
         logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='ilp'))
 
+
+    def constraints_for_relu(self, im_x, layer_id):
+        # add constraints for ReLU activation pattern
+        self.add_free_var(cp.Variable((im_x.shape[0],1), f"z{layer_id}")) # post-activation
+
+        # build indicator vector to encode inequality
+        # constraint on zi_hat as dot product
+        delta = np.zeros((1, len(im_x)))
+        beta  = np.zeros((1, len(im_x)))
+        for j, _im_x_j in enumerate(im_x):
+            if _im_x_j[0] >= 0:
+                delta[0,j] = 1 # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
+                beta[0,j] = 1  # constraint zi == zi_hat
+            else:
+                delta[0,j] = -1 # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
+                beta[0,j] = 0   # constraint zi == 0
+
+        # constraint (zi_hat >= 0 OR zi_hat < 0)
+        self.add_constraint(
+                delta @ self.free_vars(f"z{layer_id}_hat") >= 0,
+                layer_id=layer_id,
+                constr_type='relu_1',
+                alg_type='ilp')
+
+        # constraint (xi == zi_hat OR xi == 0)
+        self.add_constraint(
+                self.free_vars(f"z{layer_id}") == beta @ self.free_vars(f"z{layer_id}_hat"),
+                layer_id=layer_id,
+                constr_type='relu_2',
+                alg_type='ilp')
+
+        logging.debug(self.str_constraints(layer_id=layer_id,
+                                           constr_type='relu_2',
+                                           alg_type='ilp'))
+
     def constraints_for_point(self, x, verbose=False):
         # use ILP to verify all x' within eps inf norm of x
         # are classified the same as x'
@@ -44,46 +79,21 @@ class IteratedLinearVerifier(AbstractVerifier):
         # 1) add constraints for affine transforms
         # 2) add constraints for ReLU activation pattern
         for i in range(1, len(self.nn_weights)+1):
+
+            # Get layer weights and bias vec
             Wi = self.nn_weights[i-1]
             _bi = self.nn_bias_vecs[i-1]
             bi = np.reshape(_bi, (_bi.shape[0], 1))
-
-            self.constraints_for_affine_layer(Wi, bi, i)
 
             # propogate reference point
             _im_x = Wi @ _im_x + bi
             logging.debug(f"After layer {i} affine T - shape={_im_x.shape}")
             logging.debug(_im_x)
 
-            # add constraints for ReLU activation pattern
-            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
-
-            # build indicator vector to encode inequality
-            # constraint on zi_hat as dot product
-            delta = np.zeros((1, len(_im_x)))
-            beta  = np.zeros((1, len(_im_x)))
-            for j, _im_x_j in enumerate(_im_x):
-                if _im_x_j[0] >= 0:
-                    delta[0,j] = 1 # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
-                    beta[0,j] = 1  # constraint zi == zi_hat
-                else:
-                    delta[0,j] = -1 # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
-                    beta[0,j] = 0   # constraint zi == 0
-
-            # constraint (zi_hat >= 0 OR zi_hat < 0)
-            self.add_constraint(delta @ self.free_vars(f"z{i}_hat") >= 0,
-                                layer_id=i,
-                                constr_type='relu_1',
-                                alg_type='ilp')
-
-            # constraint (xi == zi_hat OR xi == 0)
-            self.add_constraint(self.free_vars(f"z{i}") == beta @ self.free_vars(f"z{i}_hat"),
-                                layer_id=i,
-                                constr_type='relu_2',
-                                alg_type='ilp')
-            logging.debug(self.str_constraints(layer_id=i,
-                                               constr_type='relu_2',
-                                               alg_type='ilp'))
+            # add affine constraints
+            self.constraints_for_affine_layer(Wi, bi, i)
+            # add relu constraints
+            self.constraints_for_relu(_im_x, i)
 
             # continue propogating reference point through f
             logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
