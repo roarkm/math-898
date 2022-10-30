@@ -106,15 +106,6 @@ class IteratedLinearVerifier(AbstractVerifier):
                             alg_type='ilp')
         return self.get_constraints()
 
-    def problem_for_point(self, x, verbose=False):
-        if self.get_constraints() == []:
-            self.constraints_for_point(x, verbose=verbose)
-
-        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
-        self.prob = cp.Problem(obj, self.get_constraints())
-        logging.debug("Constraints")
-        logging.debug(self.str_constraints())
-
 
 if __name__ == '__main__':
     f = identity_map(2,2)

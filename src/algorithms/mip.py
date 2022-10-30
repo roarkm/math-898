@@ -55,7 +55,7 @@ class MIPVerifier(AbstractVerifier):
                             alg_type='mip')
         logging.debug(self.str_constraints(layer_id=layer_id))
 
-    def constraints_for_network(self, verbose=False):
+    def constraints_for_point(self, _=None, verbose=False):
         assert self.f != None, "No NN provided."
         assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
@@ -94,15 +94,6 @@ class MIPVerifier(AbstractVerifier):
                             constr_type='safety_set',
                             alg_type='ilp')
         return self.get_constraints()
-
-    def problem_for_point(self, x, verbose=False):
-        if self.get_constraints() == []:
-            self.constraints_for_network(verbose=verbose)
-
-        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
-        self.prob = cp.Problem(obj, self.get_constraints())
-        logging.debug("Constraints")
-        logging.debug(self.str_constraints())
 
 
 if __name__ == '__main__':

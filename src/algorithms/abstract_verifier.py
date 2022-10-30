@@ -83,16 +83,6 @@ class AbstractVerifier():
                                                  n=fx.shape[1],
                                                  complement=complement)
 
-    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False, tol=10**(-4)):
-        self.problem_for_point(x=x, verbose=verbose)
-        try:
-            eps_hat = self.robustness_at_point(x, verbose=verbose)
-            if eps_hat < eps - tol:
-                return False
-            return True
-        except Exception as err:
-            logging.critical(err)
-
     def robustness_at_point(self, x, verbose=False):
         self.prob.solve(verbose=verbose)
         status = self.prob.status
@@ -104,6 +94,25 @@ class AbstractVerifier():
         else:
             raise Exception(status)
 
+    def problem_for_point(self, x, verbose=False):
+        if self.get_constraints() == []:
+            self.constraints_for_point(x, verbose=verbose)
+        # Currently using max-disturbance
+        # TODO: optionally constrain input region instead of max-disturbance
+        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
+        self.prob = cp.Problem(obj, self.get_constraints())
+        logging.debug("Constraints")
+        logging.debug(self.str_constraints())
+
+    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False, tol=10**(-4)):
+        self.problem_for_point(x=x, verbose=verbose)
+        try:
+            eps_hat = self.robustness_at_point(x, verbose=verbose)
+            if eps_hat < eps - tol:
+                return False
+            return True
+        except Exception as err:
+            logging.critical(err)
 
 
 def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
