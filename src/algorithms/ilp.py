@@ -16,6 +16,16 @@ class IteratedLinearVerifier(AbstractVerifier):
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
+    def constraints_for_affine_layer(self, W, b, layer_id):
+        # add constraint for affine transformation
+        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
+        self.add_constraint(
+            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
+            layer_id=layer_id, constr_type='affine', alg_type='ilp')
+
+        logging.debug(self.free_vars(names_only=True))
+        logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='ilp'))
+
     def constraints_for_point(self, x, verbose=False):
         # use ILP to verify all x' within eps inf norm of x
         # are classified the same as x'
@@ -38,17 +48,7 @@ class IteratedLinearVerifier(AbstractVerifier):
             _bi = self.nn_bias_vecs[i-1]
             bi = np.reshape(_bi, (_bi.shape[0], 1))
 
-            # add constraint for affine transformation
-            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
-            self.add_constraint(self.free_vars(f"z{i}_hat") == Wi @ self.free_vars(f"z{i-1}") + bi,
-                                layer_id=i,
-                                constr_type='affine',
-                                alg_type='ilp')
-
-            logging.debug(self.free_vars(names_only=True))
-            logging.debug(self.str_constraints(layer_id=i,
-                                               constr_type='affine',
-                                               alg_type='ilp'))
+            self.constraints_for_affine_layer(Wi, bi, i)
 
             # propogate reference point
             _im_x = Wi @ _im_x + bi
