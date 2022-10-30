@@ -12,9 +12,10 @@ from src.algorithms.abstract_verifier import (AbstractVerifier,
 
 class MIPVerifier(AbstractVerifier):
 
-    def __init__(self, f=None):
+    def __init__(self, f=None, M=10**3):
         super(MIPVerifier, self).__init__(f)
         self.name = 'NSVerify'
+        self.M = M
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
         self.prob = None
 
@@ -28,61 +29,62 @@ class MIPVerifier(AbstractVerifier):
         logging.debug(self.free_vars(names_only=True))
         logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='mip'))
 
+    def constraints_for_relu(self, Wi, layer_id):
+        self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}_hat")) # pre-activation
+        self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}")) # post-activation
+        self.add_free_var(cp.Variable((Wi.shape[0],1), f"d{layer_id}", integer=True))
+
+        # d_ij in {0,1}
+        self.add_constraint(self.free_vars(f"d{layer_id}") >= 0,
+                            layer_id=layer_id,
+                            constr_type='int_GT_0',
+                            alg_type='mip')
+        self.add_constraint(self.free_vars(f"d{layer_id}") <= 1,
+                            layer_id=layer_id,
+                            constr_type='int_LT_0',
+                            alg_type='mip')
+
+        # z_ij >= z_ij_hat
+        self.add_constraint(self.free_vars(f"z{layer_id}") >= self.free_vars(f"z{layer_id}_hat"),
+                            layer_id=layer_id,
+                            constr_type='relu_1',
+                            alg_type='mip')
+
+        # z_ij_hat < 0 implies d_ij == 0    iff    -z_ij <= M * (1 - d_ij)
+        _c = -1*self.free_vars(f"z{layer_id}_hat") <= self.M * (np.ones((Wi.shape[0], 1))-self.free_vars(f"d{layer_id}"))
+        self.add_constraint(_c,
+                            layer_id=layer_id,
+                            constr_type='relu_2',
+                            alg_type='mip')
+
+        # z_ij_hat > 0 implies d_ij == 1    iff    z_ij <= M * d_ij
+        _c = self.free_vars(f"z{layer_id}_hat") <= self.M * self.free_vars(f"d{layer_id}")
+        self.add_constraint(_c,
+                            layer_id=layer_id,
+                            constr_type='relu_3',
+                            alg_type='mip')
+        logging.debug(self.str_constraints(layer_id=layer_id))
+
     def constraints_for_network(self, verbose=False):
         assert self.f != None, "No NN provided."
         assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
-        M = 10**10
-        logging.debug(f"Setting M = {M}")
+        logging.debug(f"Setting M = {self.M}")
 
         # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
         self.add_free_var(cp.Variable((self.nn_weights[0].shape[1],1), name='z0'))
 
-        # propogate x layer by layer through f
-        # 1) add constraints for affine transforms
-        # 2) add constraints for ReLU activation pattern
         for i in range(1, len(self.nn_weights)+1):
+            # get layer weights and bias vec
             Wi = self.nn_weights[i-1]
             _bi = self.nn_bias_vecs[i-1]
             bi = np.reshape(_bi, (_bi.shape[0], 1))
 
+            # add affine constraints
             self.constraints_for_affine_layer(Wi, bi, i)
-
-            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}_hat")) # pre-activation
-            self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{i}")) # post-activation
-            self.add_free_var(cp.Variable((Wi.shape[0],1), f"d{i}", integer=True))
-
-            # d_ij in {0,1}
-            self.add_constraint(self.free_vars(f"d{i}") >= 0,
-                                layer_id=i,
-                                constr_type='int_GT_0',
-                                alg_type='mip')
-            self.add_constraint(self.free_vars(f"d{i}") <= 1,
-                                layer_id=i,
-                                constr_type='int_LT_0',
-                                alg_type='mip')
-
-            # z_ij >= z_ij_hat
-            self.add_constraint(self.free_vars(f"z{i}") >= self.free_vars(f"z{i}_hat"),
-                                layer_id=i,
-                                constr_type='relu_1',
-                                alg_type='mip')
-
-            # z_ij_hat < 0 implies d_ij == 0    iff    -z_ij <= M * (1 - d_ij)
-            _c = -1*self.free_vars(f"z{i}_hat") <= M*(np.ones((Wi.shape[0], 1))-self.free_vars(f"d{i}"))
-            self.add_constraint(_c,
-                                layer_id=i,
-                                constr_type='relu_2',
-                                alg_type='mip')
-
-            # z_ij_hat > 0 implies d_ij == 1    iff    z_ij <= M * d_ij
-            _c = self.free_vars(f"z{i}_hat") <= M * self.free_vars(f"d{i}")
-            self.add_constraint(_c,
-                                layer_id=i,
-                                constr_type='relu_3',
-                                alg_type='mip')
-            logging.debug(self.str_constraints(layer_id=i))
+            # add relu constraints
+            self.constraints_for_relu(Wi, i)
 
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
