@@ -14,7 +14,9 @@ python3 -m venv .venv
 
 # switch to the created virtual environment
 source .venv/bin/activate
-python3 -m pip install --upgrade 'pip==22.2.2'
+python3 -m pip install --upgrade 'pip==22.3'
+# not sure why, but this has to be installed before requirements
+pip install numpy numpy==1.23.2
 
 # install required packages to virtual environment
 pip install -r requirements.txt
