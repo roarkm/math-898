@@ -1,6 +1,7 @@
 .DS_Store
 .venv
 math_898.egg-info
+*/**/__pycache__
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
