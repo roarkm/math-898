@@ -23,25 +23,15 @@ class IteratedLinearVerifier(AbstractVerifier):
         # build indicator vector to encode inequality
         # constraint on zi_hat as dot product
         delta = np.zeros((1, len(im_x)))
-        beta  = np.zeros((1, len(im_x)))
         for j, _im_x_j in enumerate(im_x):
             if _im_x_j[0] >= 0:
-                delta[0,j] = 1 # zi_hat[j] >= 0 iff (1 * zi_hat[j] >= 0)
-                beta[0,j] = 1  # constraint zi == zi_hat
+                delta[0,j] = 1
             else:
-                delta[0,j] = -1 # zi_hat[j] < 0 iff (-1 * zi_hat[j] > 0)
-                beta[0,j] = 0   # constraint zi == 0
+                delta[0,j] = -1
 
         # constraint (zi_hat >= 0 OR zi_hat < 0)
         self.add_constraint(
-                delta @ self.free_vars(f"z{layer_id}_hat") >= 0,
-                layer_id=layer_id,
-                constr_type='relu_1',
-                alg_type='ilp')
-
-        # constraint (xi == zi_hat OR xi == 0)
-        self.add_constraint(
-                self.free_vars(f"z{layer_id}") == beta @ self.free_vars(f"z{layer_id}_hat"),
+                (2*delta - np.ones((1,len(im_x)))) @ self.free_vars(f"z{layer_id}_hat") >= 0,
                 layer_id=layer_id,
                 constr_type='relu_2',
                 alg_type='ilp')
