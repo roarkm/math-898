@@ -75,25 +75,33 @@ class IteratedLinearVerifier(AbstractVerifier):
         return self.get_constraints()
 
 
-if __name__ == '__main__':
+
+def quick_test_eps_robustness():
     f = identity_map(2,2)
     ilp = IteratedLinearVerifier(f)
-    eps = 3
-    x = [[1], [2]]
+    eps = 8
+    x = [[9], [1.1]]
     e_robust = ilp.decide_eps_robustness(x, eps, verbose=True)
 
-    logging.debug(ilp.str_constraints())
+    # logging.debug(ilp.str_constraints())
 
     x_class = f.class_for_input(x)
     print(f"f({x}) = class {x_class+1}")
     print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
     if not e_robust:
-        print(ilp.opt_soln('z0'))
-        adv = ilp.free_vars('z0').value
-        print(f"Counterexample: f({adv}) = class {f.class_for_input(adv)+1}")
-    exit()
+        print(ilp.str_opt_soln('z0'))
+        ce = ilp.counter_example
+        print(f"Counterexample: f({ce}) = class {f.class_for_input(ce)+1}")
 
-    eps_hat = ilp.compute_robustness(x, eps)
-    logging.debug(ilp.str_constraints(layer_id=0))
-    print(eps_hat)
-    exit()
+
+def quick_test_pointwise_robustness():
+    f = identity_map(2,2)
+    ilp = IteratedLinearVerifier(f)
+    x = [[2.01], [1]]
+    eps_hat = ilp.compute_robustness(x)
+    print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
+    print(f"Nearest adversarial example is \n{ilp.counter_example}.")
+
+if __name__ == '__main__':
+    quick_test_eps_robustness()
+    quick_test_pointwise_robustness()

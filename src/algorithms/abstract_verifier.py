@@ -68,11 +68,11 @@ class AbstractVerifier():
             s = f"{var_name} not in free vars."
             raise Exception(s)
 
-    def opt_soln(self, var_name=None):
+    def str_opt_soln(self, var_name=None):
         s = ''
         if var_name:
             opt_var = self.free_vars(var_name=var_name)
-            s += f"{opt_var.name()} =\n{opt_var.value}\n"
+            s += f"{opt_var.name()} =\n{opt_var.value}"
             return s
         for opt_var in self.free_vars(var_name=var_name):
             s += f"{opt_var.name()} =\n{opt_var.value}\n"
@@ -99,7 +99,7 @@ class AbstractVerifier():
                             constr_type=f"output",
                             alg_type=self.name)
 
-    def decide_eps_robustness(self, x, eps, verbose=False, tol=10**(-4)):
+    def decide_eps_robustness(self, x, eps, verbose=False):
         if self.get_constraints() == []:
             self.network_constraints(x, verbose=verbose)
             c, fv = constraints_for_inf_ball(x, eps, free_vars=self.free_vars('z0'))
@@ -126,14 +126,16 @@ class AbstractVerifier():
         else:
             raise Exception(status)
 
-    def compute_robustness(self, x, eps, verbose=False, tol=10**(-4)):
+    def compute_robustness(self, x, verbose=False):
         if self.get_constraints() == []:
             self.network_constraints(x, verbose=verbose)
             self.safety_set_constraints(x, verbose=verbose)
 
         obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
         self.prob = cp.Problem(obj, self.get_constraints())
-        self.prob.solve(verbose=verbose)
+        self.prob.solve(verbose=verbose,
+                        max_iters=10**10,
+                        solver='SCS')
         status = self.prob.status
 
         if (status == cp.OPTIMAL_INACCURATE) or \
@@ -142,6 +144,7 @@ class AbstractVerifier():
             logging.warning("Warning: inaccurate solution.")
 
         if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
+            self.counter_example = self.free_vars('z0').value
             return self.prob.value
         elif status == cp.INFEASIBLE:
             return self.prob.value
@@ -163,18 +166,8 @@ class AbstractVerifier():
     def verify_counter_example(self, x, counter):
         # assert counter_example is not in safety set!
         assert self.f.class_for_input(x) != self.f.class_for_input(counter)
-
-        # TODO: assert counter_example is in norm ball!
-        # print(x)
-        # print(self.f.class_for_input(x))
-        # print(counter)
-        # print(self.f.class_for_input(counter))
-        # # in_constrs = self.get_constraints(layer_id=0, constr_type='input')
-        # print(self.str_constraints(layer_id=0))
-        # exit()
-        # exit()
-        # out_constrs = self.get_constraints(layer_id=0, constr_type='output')
-
+        # # TODO: assert counter_example is in norm ball!
+        # input_constrs = self.get_constraints(constr_typ='input')
 
 
 def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
@@ -189,8 +182,7 @@ def _vector_for_separating_hyperplane(large_index, small_index, n, complement=Fa
 
 
 def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
-                                          verbose=False, complement=False,
-                                          tol=10**(-5)):
+                                          verbose=False, complement=False):
     # create constraint for a seperating hyperplane in R^n
     # where n = dim(opt_vars)
     assert large_index <= opt_vars.shape[1]
@@ -199,18 +191,16 @@ def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
     c = _vector_for_separating_hyperplane(large_index, small_index,
                                           opt_vars.shape[1],
                                           complement=complement)
-    return opt_vars @ c >= tol * np.ones((1,1))
+    return opt_vars @ c >= np.zeros((1,1))
 
 
 def mat_for_k_class_polytope(k, dim, complement=False):
     assert complement == False, "Complement option not yet supported"
     if dim == 1:
         return np.zeros((1,1)), np.zeros((1,1))
-
     n_rows = dim-1
     A = np.zeros((n_rows, dim))
     A[:,k] = 1
-
     row = 0
     for j in range(0, dim):
         if j == k:
