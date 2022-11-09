@@ -66,6 +66,19 @@ class MultiLayerNN(nn.Module):
                 assert isinstance(l, nn.modules.activation.ReLU)
         return weights, bias_vecs
 
+    def class_for_input(self, x):
+        fx = self.forward(torch.tensor(x).T.float()).detach().numpy()
+        _class_order = np.argsort(fx)[0]
+        return _class_order[-1] # index of component with largest value
+
+    def top_two_classes(self, x):
+        # move to model class
+        fx = self.forward(torch.tensor(x).T.float()).detach().numpy()
+        _class_order = np.argsort(fx)[0]
+        x_class = _class_order[-1]           # index of component with largest value
+        adversarial_class = _class_order[-2] # index of component with second largest value
+        return x_class, adversarial_class
+
 
 def identity_map(dim, nlayers):
     weights   = []
