@@ -13,7 +13,7 @@ class AbstractVerifier():
         self._free_vars = []
         self.relu = nn.ReLU()
         if f:
-            self.nn_weights, self.nn_bias_vecs = weights_from_nn(self.f)
+            self.nn_weights, self.nn_bias_vecs = f.get_weights()
 
     def __str__(self):
         s = ''
@@ -221,24 +221,6 @@ def str_constraints(constraints):
         s += str(c)
         s += "\n"
     return s
-
-
-def weights_from_nn(f):
-    """
-    :type  : MultiLayerNN
-    :rtype : tuple(list[np.array], list[np.array])
-    """
-    # only handles 'flat' ffnn's (for now)
-    # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
-    weights, bias_vecs = [], []
-    for i, l in enumerate(f.layers):
-        if isinstance(l, nn.modules.linear.Linear):
-            weights.append(l.weight.data.numpy())
-            bias_vecs.append(l.bias.data.numpy())
-        else:
-            assert isinstance(l, nn.modules.activation.ReLU)
-    assert len(weights) >= 2, "Only supporting more than two layers"
-    return weights, bias_vecs
 
 
 if __name__ == '__main__':

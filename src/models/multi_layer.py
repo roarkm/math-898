@@ -56,6 +56,18 @@ class MultiLayerNN(nn.Module):
             x = l(x)
         return x
 
+    def get_weights(self):
+        # only handles 'flat' ffnn's (for now)
+        # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
+        weights, bias_vecs = [], []
+        for i, l in enumerate(self.layers):
+            if isinstance(l, nn.modules.linear.Linear):
+                weights.append(l.weight.data.numpy())
+                bias_vecs.append(l.bias.data.numpy())
+            else:
+                assert isinstance(l, nn.modules.activation.ReLU)
+        return weights, bias_vecs
+
 
 def identity_map(dim, nlayers):
     weights   = []
