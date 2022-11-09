@@ -83,7 +83,6 @@ def quick_test_eps_robustness():
 
     logging.debug(mip.str_constraints())
 
-    exit()
     x_class = f.class_for_input(x)
     print(f"f({x}) = class {x_class+1}")
     print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
@@ -98,6 +97,9 @@ def quick_test_pointwise_robustness():
     ilp = MIPVerifier(f)
     x = [[2.01], [1]]
     eps_hat = ilp.compute_robustness(x)
+
+    logging.debug(mip.str_constraints())
+
     print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
     print(f"Nearest adversarial example is \n{ilp.counter_example}.")
 
