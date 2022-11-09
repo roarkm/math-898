@@ -16,10 +16,10 @@ class MIPVerifier(AbstractVerifier):
         super(MIPVerifier, self).__init__(f)
         self.name = 'NSVerify'
         self.M = M
-        logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
+        logging.basicConfig(format='MIP-%(levelname)s:\n%(message)s', level=logging.DEBUG)
         self.prob = None
 
-    def constraints_for_relu(self, Wi, layer_id):
+    def relu_constraints(self, Wi, layer_id):
         self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}_hat")) # pre-activation
         self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}")) # post-activation
         self.add_free_var(cp.Variable((Wi.shape[0],1), f"d{layer_id}", integer=True))
@@ -53,15 +53,10 @@ class MIPVerifier(AbstractVerifier):
                             layer_id=layer_id,
                             constr_type='relu_3',
                             alg_type='mip')
-        logging.debug(self.str_constraints(layer_id=layer_id))
 
-    def constraints_for_point(self, _=None, verbose=False):
+    def network_constraints(self, _=None, verbose=False):
         assert self.f != None, "No NN provided."
-        assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
-        logging.debug(f"Setting M = {self.M}")
-
-        # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
         self.add_free_var(cp.Variable((self.nn_weights[0].shape[1],1), name='z0'))
 
@@ -72,39 +67,40 @@ class MIPVerifier(AbstractVerifier):
             bi = np.reshape(_bi, (_bi.shape[0], 1))
 
             # add affine constraints
-            self.constraints_for_affine_layer(Wi, bi, i)
+            self.affine_layer_constraints(Wi, bi, i)
             # add relu constraints
-            self.constraints_for_relu(Wi, i)
+            self.relu_constraints(Wi, i)
 
-        # Add constraints for safety set
-        # Only consider seperating hyperplane for the predicted class of x
-        # and the next highest component
-        x_class, adversarial_class = self.top_two_classes(x)
-
-        n = len(self.nn_weights) # depth of NN
-        out_var = self.free_vars(f"z{n}").T
-        _c = constraints_for_separating_hyperplane(out_var, x_class,
-                                                   adversarial_class,
-                                                   complement=True)
-        self.add_constraint(_c, layer_id=n,
-                            constr_type='safety_set',
-                            alg_type='ilp')
         return self.get_constraints()
 
 
-if __name__ == '__main__':
+def quick_test_eps_robustness():
     f = identity_map(2,2)
     mip = MIPVerifier(f)
-    eps = 0.5
-    x = [[9], [0]]
-    is_robust = mip.verify_at_point(x, eps)
+    eps = 8
+    x = [[9], [1.1]]
+    e_robust = mip.decide_eps_robustness(x, eps, verbose=True)
 
-    if is_robust:
-        im_adv = f(torch.tensor(mip.free_vars('z0').value).T.float()).detach().numpy()
-        fx = f(torch.tensor(x).T.float()).detach().numpy()
-        logging.info(f"Identity map is ({eps})-robust at x={x}. epsilon-hat={mip.prob.value} > epsilon={eps}")
-        logging.info(f"Best z0:\n{mip.free_vars('z0').value}")
-    else:
-        logging.debug(mip.str_constraints())
-        logging.info(f"Best z0: {mip.free_vars('z0').value}")
-        logging.info(f"Identity map is NOT ({eps})-robust at x={x}: epsilon_hat: {mip.prob.value}")
+    logging.debug(mip.str_constraints())
+
+    exit()
+    x_class = f.class_for_input(x)
+    print(f"f({x}) = class {x_class+1}")
+    print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
+    if not e_robust:
+        print(ilp.str_opt_soln('z0'))
+        ce = ilp.counter_example
+        print(f"Counterexample: f({ce}) = class {f.class_for_input(ce)+1}")
+
+
+def quick_test_pointwise_robustness():
+    f = identity_map(2,2)
+    ilp = MIPVerifier(f)
+    x = [[2.01], [1]]
+    eps_hat = ilp.compute_robustness(x)
+    print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
+    print(f"Nearest adversarial example is \n{ilp.counter_example}.")
+
+if __name__ == '__main__':
+    quick_test_eps_robustness()
+    quick_test_pointwise_robustness()
