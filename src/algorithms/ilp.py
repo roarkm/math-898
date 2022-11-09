@@ -13,45 +13,44 @@ class IteratedLinearVerifier(AbstractVerifier):
     def __init__(self, f=None):
         super(IteratedLinearVerifier, self).__init__(f)
         self.name = 'ILP'
-        logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.INFO)
+        logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.DEBUG)
         self.prob = None
 
-    def constraints_for_relu(self, im_x, layer_id):
+    def relu_constraints(self, im_x, layer_id):
         # add constraints for ReLU activation pattern
         self.add_free_var(cp.Variable((im_x.shape[0],1), f"z{layer_id}")) # post-activation
 
         # build indicator vector to encode inequality
         # constraint on zi_hat as dot product
+        # delta = np.zeros((len(im_x), len(im_x)))
         delta = np.zeros((1, len(im_x)))
         for j, _im_x_j in enumerate(im_x):
-            if _im_x_j[0] >= 0:
+            if _im_x_j[0] > 0:
                 delta[0,j] = 1
-            else:
-                delta[0,j] = -1
 
-        # constraint (zi_hat >= 0 OR zi_hat < 0)
         self.add_constraint(
-                (2*delta - np.ones((1,len(im_x)))) @ self.free_vars(f"z{layer_id}_hat") >= 0,
+            self.free_vars(f"z{layer_id}") == np.diagflat(delta) @ self.free_vars(f"z{layer_id}_hat"),
+            layer_id=layer_id,
+            constr_type='relu_1',
+            alg_type='ilp')
+
+        _delta = 2*delta - np.ones((1,len(im_x)))
+        self.add_constraint(
+                np.diagflat(_delta) @ self.free_vars(f"z{layer_id}_hat") >= 0,
                 layer_id=layer_id,
                 constr_type='relu_2',
                 alg_type='ilp')
 
-        logging.debug(self.str_constraints(layer_id=layer_id,
-                                           constr_type='relu_2',
-                                           alg_type='ilp'))
 
-    def constraints_for_point(self, x, verbose=False):
-        # use ILP to verify all x' within eps inf norm of x
-        # are classified the same as x'
-        # (ie: f(x) == f(x') for all x' in inf-norm ball centered at x
+    def network_constraints(self, x, verbose=False):
+        # build constraints for the network at x
         assert self.f != None, "No NN provided."
         assert self.nn_weights[0].shape[1] == len(x), "x is the wrong shape"
 
         _im_x = np.reshape(np.array(x), (len(x), 1))
 
-        # z0 is unconstrained since we are using inf-ball in objective function
         # optimization var list starting with z0
-        # TODO: optionally use constraints for region of interest
+        # z0 to be constrained elsewhere for sat problem
         self.add_free_var(cp.Variable(_im_x.shape, name='z0'))
 
         for i in range(1, len(self.nn_weights)+1):
@@ -62,51 +61,39 @@ class IteratedLinearVerifier(AbstractVerifier):
 
             # propogate reference point
             _im_x = Wi @ _im_x + bi
-            logging.debug(f"After layer {i} affine T - shape={_im_x.shape}")
-            logging.debug(_im_x)
 
             # add affine constraints
-            self.constraints_for_affine_layer(Wi, bi, i)
+            self.affine_layer_constraints(Wi, bi, i)
             # add relu constraints
-            self.constraints_for_relu(_im_x, i)
+            self.relu_constraints(_im_x, i)
 
             # continue propogating reference point through f
-            logging.debug(f"Before relu at layer {i}: shape={_im_x.shape}")
-            logging.debug(_im_x)
             _im_x = np.array(self.relu(torch.tensor(_im_x)))
 
-        # Add constraints for safety set
-        # Only consider seperating hyperplane for the predicted class of x
-        # and the next highest component
         fx = self.f(torch.tensor(x).T.float()).detach().numpy()
-        assert np.array_equal(_im_x, fx.T) == True # sanity check
-
-        x_class, adversarial_class = self.top_two_classes(x)
-
-        n = len(self.nn_weights) # depth of NN
-        out_var = self.free_vars(f"z{n}").T
-        hplane_constraint = constraints_for_separating_hyperplane(out_var, x_class,
-                                                                  adversarial_class,
-                                                                  complement=True)
-        self.add_constraint(hplane_constraint, layer_id=n,
-                            constr_type=f"safety_set",
-                            alg_type='ilp')
+        assert np.array_equal(_im_x.astype('float32'), fx.T.astype('float32'))
         return self.get_constraints()
 
 
 if __name__ == '__main__':
     f = identity_map(2,2)
     ilp = IteratedLinearVerifier(f)
-    eps = 0.5
-    x = [[9], [0]]
-    is_robust = ilp.verify_at_point(x=x, eps=eps)
+    eps = 3
+    x = [[1], [2]]
+    e_robust = ilp.decide_eps_robustness(x, eps, verbose=True)
 
-    if is_robust:
-        im_adv = f(torch.tensor(ilp.free_vars('z0').value).T.float()).detach().numpy()
-        fx = f(torch.tensor(x).T.float()).detach().numpy()
-        logging.info(f"Identity map is ({eps})-robust at x={x}. epsilon-hat={ilp.prob.value} > epsilon={eps}")
-        logging.info(f"Best z0:\n{ilp.free_vars('z0').value}")
-    else:
-        logging.debug(ilp.str_constraints())
-        logging.info(f"Best z0: {ilp.free_vars('z0').value}")
-        logging.info(f"Identity map is NOT ({eps})-robust at x={x}: epsilon_hat: {ilp.prob.value}")
+    logging.debug(ilp.str_constraints())
+
+    x_class = f.class_for_input(x)
+    print(f"f({x}) = class {x_class+1}")
+    print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
+    if not e_robust:
+        print(ilp.opt_soln('z0'))
+        adv = ilp.free_vars('z0').value
+        print(f"Counterexample: f({adv}) = class {f.class_for_input(adv)+1}")
+    exit()
+
+    eps_hat = ilp.compute_robustness(x, eps)
+    logging.debug(ilp.str_constraints(layer_id=0))
+    print(eps_hat)
+    exit()

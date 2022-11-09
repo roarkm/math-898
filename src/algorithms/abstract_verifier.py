@@ -25,9 +25,17 @@ class AbstractVerifier():
         return s
 
     def str_constraints(self, layer_id=None, constr_type=None, alg_type=None):
-        return str_constraints(self.get_constraints(layer_id=layer_id,
-                                                    constr_type=constr_type,
-                                                    alg_type=alg_type))
+        constrs = self.get_constraints(layer_id=layer_id,
+                                       constr_type=constr_type,
+                                       alg_type=alg_type)
+        if len(constrs) == 0:
+            return "NO CONSTRAINTS"
+        s = "CONSTRAINTS\n"
+        for c in constrs:
+            s += f"---------------------------------\n"
+            s += str(c)
+            s += "\n"
+        return s
 
     def add_constraint(self, constr, layer_id, constr_type, alg_type):
         self._constraints[(layer_id, constr_type, alg_type)] = constr
@@ -60,6 +68,86 @@ class AbstractVerifier():
             s = f"{var_name} not in free vars."
             raise Exception(s)
 
+    def opt_soln(self, var_name=None):
+        s = ''
+        if var_name:
+            opt_var = self.free_vars(var_name=var_name)
+            s += f"{opt_var.name()} =\n{opt_var.value}\n"
+            return s
+        for opt_var in self.free_vars(var_name=var_name):
+            s += f"{opt_var.name()} =\n{opt_var.value}\n"
+        return s
+
+    def affine_layer_constraints(self, W, b, layer_id):
+        # add constraint for affine transformation
+        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
+        self.add_constraint(
+            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
+            layer_id=layer_id, constr_type='affine', alg_type=self.name)
+
+    def safety_set_constraints(self ,x, verbose=False):
+        # Add constraints for safety set
+        # Only consider seperating hyperplane for the predicted class of x
+        # and the next highest component
+        x_class, adversarial_class = self.f.top_two_classes(x)
+        n = len(self.nn_weights) # depth of NN
+        out_var = self.free_vars(f"z{n}").T
+        hplane_constraint = constraints_for_separating_hyperplane(out_var, x_class,
+                                                                  adversarial_class,
+                                                                  complement=True)
+        self.add_constraint(hplane_constraint, layer_id=n,
+                            constr_type=f"output",
+                            alg_type=self.name)
+
+    def decide_eps_robustness(self, x, eps, verbose=False, tol=10**(-4)):
+        if self.get_constraints() == []:
+            self.network_constraints(x, verbose=verbose)
+            c, fv = constraints_for_inf_ball(x, eps, free_vars=self.free_vars('z0'))
+            self.add_constraint(c, 0, 'input', self.name)
+            self.safety_set_constraints(x, verbose=verbose)
+
+        obj = cp.Minimize(1)
+        self.prob = cp.Problem(obj, self.get_constraints())
+        self.prob.solve(verbose=verbose,
+                        max_iters=10**10,
+                        solver='SCS')
+        status = self.prob.status
+
+        if (status == cp.OPTIMAL_INACCURATE) or \
+           (status == cp.INFEASIBLE_INACCURATE) or \
+           (status == cp.UNBOUNDED_INACCURATE):
+            logging.warning("Warning: inaccurate solution.")
+
+        if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
+            self.counter_example = self.free_vars('z0').value
+            return False
+        elif status == cp.INFEASIBLE:
+            return True
+        else:
+            raise Exception(status)
+
+    def compute_robustness(self, x, eps, verbose=False, tol=10**(-4)):
+        if self.get_constraints() == []:
+            self.network_constraints(x, verbose=verbose)
+            self.safety_set_constraints(x, verbose=verbose)
+
+        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
+        self.prob = cp.Problem(obj, self.get_constraints())
+        self.prob.solve(verbose=verbose)
+        status = self.prob.status
+
+        if (status == cp.OPTIMAL_INACCURATE) or \
+           (status == cp.INFEASIBLE_INACCURATE) or \
+           (status == cp.UNBOUNDED_INACCURATE):
+            logging.warning("Warning: inaccurate solution.")
+
+        if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
+            return self.prob.value
+        elif status == cp.INFEASIBLE:
+            return self.prob.value
+        else:
+            raise Exception(status)
+
     def sep_hplane_for_advclass(self, x, complement=False):
         fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()
         class_order = np.argsort(fx)[0]
@@ -72,53 +160,21 @@ class AbstractVerifier():
                                                  n=fx.shape[1],
                                                  complement=complement)
 
-    def constraints_for_affine_layer(self, W, b, layer_id):
-        # add constraint for affine transformation
-        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
-        self.add_constraint(
-            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
-            layer_id=layer_id, constr_type='affine', alg_type=self.name)
+    def verify_counter_example(self, x, counter):
+        # assert counter_example is not in safety set!
+        assert self.f.class_for_input(x) != self.f.class_for_input(counter)
 
-        logging.debug(self.free_vars(names_only=True))
-        logging.debug(self.str_constraints(layer_id=layer_id, constr_type='affine', alg_type='mip'))
+        # TODO: assert counter_example is in norm ball!
+        # print(x)
+        # print(self.f.class_for_input(x))
+        # print(counter)
+        # print(self.f.class_for_input(counter))
+        # # in_constrs = self.get_constraints(layer_id=0, constr_type='input')
+        # print(self.str_constraints(layer_id=0))
+        # exit()
+        # exit()
+        # out_constrs = self.get_constraints(layer_id=0, constr_type='output')
 
-    def robustness_at_point(self, x, verbose=False):
-        self.prob.solve(verbose=verbose)
-        status = self.prob.status
-        if status == cp.OPTIMAL:
-            return self.prob.value
-        elif status == cp.OPTIMAL_INACCURATE:
-            logging.warning("Warning: inaccurate solution.")
-            return self.prob.value
-        else:
-            raise Exception(status)
-
-    def problem_for_point(self, x, verbose=False):
-        if self.get_constraints() == []:
-            self.constraints_for_point(x, verbose=verbose)
-        # Currently using max-disturbance
-        # TODO: optionally constrain input region instead of max-disturbance
-        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
-        self.prob = cp.Problem(obj, self.get_constraints())
-        logging.debug("Constraints")
-        logging.debug(self.str_constraints())
-
-    def verify_at_point(self, x=[[9], [-9]], eps=0.5, verbose=False, tol=10**(-4)):
-        self.problem_for_point(x=x, verbose=verbose)
-        try:
-            eps_hat = self.robustness_at_point(x, verbose=verbose)
-            if eps_hat < eps - tol:
-                return False
-            return True
-        except Exception as err:
-            logging.critical(err)
-
-    def top_two_classes(self, x):
-        fx = self.f(torch.tensor(x).T.float()).detach().numpy()
-        _class_order = np.argsort(fx)[0]
-        x_class = _class_order[-1]           # index of component with largest value
-        adversarial_class = _class_order[-2] # index of component with second largest value
-        return x_class, adversarial_class
 
 
 def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
@@ -133,7 +189,8 @@ def _vector_for_separating_hyperplane(large_index, small_index, n, complement=Fa
 
 
 def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
-                                          verbose=False, complement=False):
+                                          verbose=False, complement=False,
+                                          tol=10**(-5)):
     # create constraint for a seperating hyperplane in R^n
     # where n = dim(opt_vars)
     assert large_index <= opt_vars.shape[1]
@@ -142,7 +199,7 @@ def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
     c = _vector_for_separating_hyperplane(large_index, small_index,
                                           opt_vars.shape[1],
                                           complement=complement)
-    return c @ opt_vars >= np.zeros((1,1))
+    return opt_vars @ c >= tol * np.ones((1,1))
 
 
 def mat_for_k_class_polytope(k, dim, complement=False):
@@ -212,25 +269,8 @@ def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
     return A_lt @ free_vars <= b_vec, free_vars
 
 
-def str_constraints(constraints):
-    if len(constraints) == 0:
-        return "No Constraints."
-    s = ""
-    for c in constraints:
-        s += f"constraint:\n"
-        s += str(c)
-        s += "\n"
-    return s
-
-
 if __name__ == '__main__':
     av = AbstractVerifier()
-    av.add_constraint('MyConstr0_ReLU_ILP',
-                      layer_id=0, constr_type='relu', alg_type='ilp')
-    av.add_constraint('MyConstr0_ReLU_MIP',
-                      layer_id=0, constr_type='relu', alg_type='mip')
-    av.add_constraint('MyConstr0_Affine_ILP',
-                      layer_id=0, constr_type='affine', alg_type='ilp')
     av.add_constraint('MyConstr1_Affine_ILP',
                       layer_id=1, constr_type='affine', alg_type='ilp')
-    print(av.str_constraints(layer_id=0))
+    print(av.str_constraints(layer_id=1))
