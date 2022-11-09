@@ -57,8 +57,6 @@ class MultiLayerNN(nn.Module):
         return x
 
     def get_weights(self):
-        # only handles 'flat' ffnn's (for now)
-        # https://stackoverflow.com/questions/54846905/pytorch-get-all-layers-of-model
         weights, bias_vecs = [], []
         for i, l in enumerate(self.layers):
             if isinstance(l, nn.modules.linear.Linear):
