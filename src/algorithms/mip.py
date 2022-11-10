@@ -15,12 +15,13 @@ class MIPVerifier(AbstractVerifier):
     def __init__(self, f=None, M=10**3):
         super(MIPVerifier, self).__init__(f)
         self.name = 'NSVerify'
+        # self.solver = cp.ECOS_BB # has bugs
+        self.solver = cp.GLPK_MI
         self.M = M
         logging.basicConfig(format='MIP-%(levelname)s:\n%(message)s', level=logging.DEBUG)
         self.prob = None
 
     def relu_constraints(self, Wi, layer_id):
-        self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}_hat")) # pre-activation
         self.add_free_var(cp.Variable((Wi.shape[0],1), f"z{layer_id}")) # post-activation
         self.add_free_var(cp.Variable((Wi.shape[0],1), f"d{layer_id}", integer=True))
 
@@ -77,8 +78,8 @@ class MIPVerifier(AbstractVerifier):
 def quick_test_eps_robustness():
     f = identity_map(2,2)
     mip = MIPVerifier(f)
-    eps = 8
-    x = [[9], [1.1]]
+    eps = 1
+    x = [[9], [3]]
     e_robust = mip.decide_eps_robustness(x, eps, verbose=True)
 
     logging.debug(mip.str_constraints())
@@ -87,21 +88,21 @@ def quick_test_eps_robustness():
     print(f"f({x}) = class {x_class+1}")
     print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
     if not e_robust:
-        print(ilp.str_opt_soln('z0'))
-        ce = ilp.counter_example
+        print(mip.str_opt_soln('z0'))
+        ce = mip.counter_example
         print(f"Counterexample: f({ce}) = class {f.class_for_input(ce)+1}")
 
 
 def quick_test_pointwise_robustness():
     f = identity_map(2,2)
-    ilp = MIPVerifier(f)
+    mip = MIPVerifier(f)
     x = [[2.01], [1]]
-    eps_hat = ilp.compute_robustness(x)
+    eps_hat = mip.compute_robustness(x)
 
     logging.debug(mip.str_constraints())
 
     print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
-    print(f"Nearest adversarial example is \n{ilp.counter_example}.")
+    print(f"Nearest adversarial example is \n{mip.counter_example}.")
 
 if __name__ == '__main__':
     quick_test_eps_robustness()

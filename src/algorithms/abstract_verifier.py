@@ -53,6 +53,9 @@ class AbstractVerifier():
         return list(_c.values())
 
     def add_free_var(self, var):
+        if len([v for v in self._free_vars if v.name() == var.name()]) != 0:
+            s = f"{var.name()} already exists."
+            raise Exception(s)
         self._free_vars.append(var)
 
     def free_vars(self, var_name=None, names_only=False):
@@ -110,7 +113,7 @@ class AbstractVerifier():
         self.prob = cp.Problem(obj, self.get_constraints())
         self.prob.solve(verbose=verbose,
                         max_iters=10**10,
-                        solver='SCS')
+                        solver=self.solver)
         status = self.prob.status
 
         if (status == cp.OPTIMAL_INACCURATE) or \
@@ -135,7 +138,7 @@ class AbstractVerifier():
         self.prob = cp.Problem(obj, self.get_constraints())
         self.prob.solve(verbose=verbose,
                         max_iters=10**10,
-                        solver='SCS')
+                        solver=self.solver)
         status = self.prob.status
 
         if (status == cp.OPTIMAL_INACCURATE) or \
