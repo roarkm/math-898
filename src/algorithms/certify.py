@@ -6,8 +6,7 @@ import sympy as sp
 import numpy as np
 from scipy.linalg import block_diag
 
-from src.models.multi_layer import (identity_map,
-                                    vectorize_input)
+from src.models.multi_layer import identity_map
 
 from src.algorithms.abstract_verifier import _vector_for_separating_hyperplane
 
@@ -42,7 +41,7 @@ class Certify():
                                                  complement=complement)
 
     def build_symbolic_matrices(self, x=None, eps=1):
-        x = vectorize_input(x)
+        x = np.array(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
 
         d = 0
@@ -83,7 +82,7 @@ class Certify():
         logging.info(sp.pretty(X))
 
     def network_constraints(self, x, eps, verbose=False):
-        x = vectorize_input(x)
+        x = np.array(x)
         d = 0
         c = self.sep_hplane_for_advclass(x, complement=True)
 
@@ -107,6 +106,7 @@ class Certify():
         self.constraints += [X << 0]
         return self.constraints
 
+    print(x)
     def decide_eps_robustness(self, x=[[9], [0]], eps=1,
                               verbose=False, max_iters=10**6):
 
