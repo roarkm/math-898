@@ -6,7 +6,8 @@ import sympy as sp
 import numpy as np
 from scipy.linalg import block_diag
 
-from src.models.multi_layer import identity_map
+from src.models.multi_layer import (identity_map,
+                                    vectorize_input)
 
 from src.algorithms.abstract_verifier import _vector_for_separating_hyperplane
 
@@ -18,7 +19,8 @@ from src.algorithms.certify_symbolic import (symbolic_build_M_out,
                                              symbolic_relaxation_for_relu,
                                              symbolic_relaxation_for_hypercube,
                                              symbolic_relaxation_for_polytope,
-                                             symbolic_build_gamma)
+                                             symbolic_build_gamma,
+                                             _build_E)
 
 
 class Certify():
@@ -40,7 +42,7 @@ class Certify():
                                                  complement=complement)
 
     def build_symbolic_matrices(self, x=None, eps=1):
-        x = np.array(x)
+        x = vectorize_input(x)
         im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
 
         d = 0
@@ -80,8 +82,8 @@ class Certify():
         logging.info("X =")
         logging.info(sp.pretty(X))
 
-    def constraints_for_point(self, x, eps, verbose=False):
-        x = np.array(x)
+    def network_constraints(self, x, eps, verbose=False):
+        x = vectorize_input(x)
         d = 0
         c = self.sep_hplane_for_advclass(x, complement=True)
 
@@ -108,7 +110,7 @@ class Certify():
     def decide_eps_robustness(self, x=[[9], [0]], eps=1,
                               verbose=False, max_iters=10**6):
 
-        self.constraints_for_point(x=x, eps=eps, verbose=verbose)
+        self.network_constraints(x=x, eps=eps, verbose=verbose)
         prob = cp.Problem(cp.Minimize(1), self.constraints)
         prob.solve(verbose=verbose,
                    max_iters=max_iters,
@@ -130,6 +132,9 @@ class Certify():
             return True
         else:
             raise Exception(status)
+
+    def compute_robustness(self, x, verbose=False):
+        raise Exception("compute_robustness() not supported by Certify.")
 
 
 def build_M_out(S, weights, bias_vecs):
@@ -281,17 +286,6 @@ def _relaxation_for_half_space(c, d, dim_x):
     return S
 
 
-def _build_E(weights, k):
-    E = []
-    r = weights[k].shape[1]
-    if k > 0:
-        E.append(np.zeros((r, sum([w.shape[1] for w in weights[:k]]))))
-    E.append(np.eye(r))
-    if k < len(weights)-1:
-        E.append(np.zeros((r, sum([w.shape[1] for w in weights[k+1:]]))))
-    return np.array(np.block([E]))
-
-
 def quick_test_eps_robustness():
     f = identity_map(2, 2)
     cert = Certify(f)
@@ -313,5 +307,5 @@ def symbolic_test():
 
 
 if __name__ == '__main__':
-    # quick_test_eps_robustness()
+    quick_test_eps_robustness()
     symbolic_test()

@@ -107,6 +107,16 @@ def null_map(in_dim, out_dim, nlayers = 3):
     return f
 
 
+def vectorize_input(x):
+    # converts a list of lists to correct type for network input
+    x = torch.tensor(x).float().detach().numpy()
+    if x.shape[0] > x.shape[1]:
+        return x
+    if x.shape[1] > x.shape[0]:
+        return x.T
+    return x
+
+
 if __name__ == '__main__':
     f = identity_map(8, 2)
     f = null_map(4, 2)

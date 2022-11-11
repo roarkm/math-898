@@ -4,6 +4,17 @@ import sympy as sp
 from sympy import BlockDiagMatrix
 
 
+def _build_E(weights, k):
+    E = []
+    r = weights[k].shape[1]
+    if k > 0:
+        E.append(np.zeros((r, sum([w.shape[1] for w in weights[:k]]))))
+    E.append(np.eye(r))
+    if k < len(weights)-1:
+        E.append(np.zeros((r, sum([w.shape[1] for w in weights[k+1:]]))))
+    return np.array(np.block([E]))
+
+
 def symbolic_build_M_out(S, weights, bias_vecs):
     # S is specified by caller and quadratically overapproximates
     # the safety set in the graph of f.
