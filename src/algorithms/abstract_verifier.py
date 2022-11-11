@@ -11,6 +11,7 @@ class AbstractVerifier():
         self.name = 'AbstractVerifier'
         self._constraints = {}
         self._free_vars = []
+        self.counter_example = None
         self.relu = nn.ReLU()
         if f:
             self.nn_weights, self.nn_bias_vecs = f.get_weights()
