@@ -238,14 +238,14 @@ def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
             row = np.zeros((1, len(center)))
             row[0][i] = 1
             A_lt = np.vstack([A_lt, row])
-            _a = np.matrix([[ float(center[i][0]) + eps ]])
+            _a = np.array([[ float(center[i][0]) + eps ]])
             b_vec = np.vstack([b_vec, _a])
 
             # bottom constraint
             row = np.zeros((1, len(center)))
             row[0][i] = -1
             A_lt = np.vstack([A_lt, row])
-            _a = np.matrix([[ -1 * (float(center[i][0]) - eps) ]])
+            _a = np.array([[ -1 * (float(center[i][0]) - eps) ]])
             b_vec = np.vstack([b_vec, _a])
     return A_lt @ free_vars <= b_vec, free_vars
 
