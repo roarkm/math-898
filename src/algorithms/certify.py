@@ -10,20 +10,26 @@ from scipy.linalg import block_diag
 from src.models.multi_layer import (MultiLayerNN,
                                     identity_map)
 from src.algorithms.abstract_verifier import (AbstractVerifier,
-                                              mat_for_k_class_polytope)
+                                              mat_for_k_class_polytope,
+                                              _vector_for_separating_hyperplane)
 
 
-class Certify(AbstractVerifier):
+class Certify():
 
     def __init__(self, f=None):
-        super(Certify, self).__init__(f)
+        self.f = f
         self.name = 'Certify'
+        if f:
+            self.nn_weights, self.nn_bias_vecs = f.get_weights()
         logging.basicConfig(format='Certify-%(levelname)s:\n%(message)s', level=logging.INFO)
 
-    def __str__(self):
-        s = 'Certify Algorithm\n'
-        s += super().__str__()
-        return s
+    def sep_hplane_for_advclass(self, x, complement=True):
+        out_shape = self.f(torch.tensor(x).T.float()).shape[1]
+        x_class, adversarial_class = self.f.top_two_classes(x)
+        return _vector_for_separating_hyperplane(large_index=x_class,
+                                                 small_index=adversarial_class,
+                                                 n=out_shape,
+                                                 complement=complement)
 
     def build_symbolic_matrices(self, x=None, eps=1):
         x = np.array(x)
@@ -31,7 +37,7 @@ class Certify(AbstractVerifier):
         x_class = np.argmax(im_x)
 
         d = 0
-        c = self.sep_hplane_for_advclass(x, complement=True)
+        c = self.sep_hplane_for_advclass(im_x, complement=True)
         logging.debug(c)
 
         P = symbolic_relaxation_for_hypercube(x=x, epsilon=eps)
@@ -87,44 +93,32 @@ class Certify(AbstractVerifier):
         self.constraints += [X << 0]
         return self.constraints
 
-    def verify_at_point(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
+    def decide_eps_robustness(self, x=[[9],[0]], eps=1, verbose=False, max_iters=10**6):
 
         self.constraints_for_point(x=x, eps=eps, verbose=verbose)
 
         prob = cp.Problem(cp.Minimize(1), self.constraints)
-        prob.solve(verbose=verbose, max_iters=max_iters, solver=cp.CVXOPT)
+        prob.solve(verbose=verbose,
+                   max_iters=max_iters,
+                   solver=cp.CVXOPT)
 
-        # debug = ""
-        # debug += f"f({x.T}) = {im_x} |--> class: {x_class}\n"
-        # debug += f"{prob.status}\n"
         status = prob.status
-        if status == cp.OPTIMAL:
-            # debug += f"SUCCESS: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
-            verified = True
-            self.P = self.P.value
+
+        if (status == cp.OPTIMAL_INACCURATE) or \
+           (status == cp.INFEASIBLE_INACCURATE) or \
+           (status == cp.UNBOUNDED_INACCURATE):
+            logging.warning("Warning: inaccurate solution.")
+
+        if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
             # TODO: verify 0-level set of P contains region of interest
             # (test corner points)
+            self.P = self.P.value
             self.Q = self.Q.value
-            # TODO: verify 0-level set of S contains safety set
-            # (how to test for halfspace?)
-        elif status == cp.OPTIMAL_INACCURATE:
-            # debug += f"SUCCESS?: all x within {eps} inf-norm of {x.T} are classified as class {x_class}\n"
-            verified = True
+            return False
         elif status == cp.INFEASIBLE:
-            # How to check if this is a false negative? 
-            # (maybe the relaxations aren't tight enough)
-            # debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
-            verified = False
+            return True
         else:
-            # debug += f"COULD NOT verify all x within {eps} inf-norm of {x.T} are classified as {x_class}\n"
-            verified = False
-
-        # if verbose:
-            # if verified:
-                # debug += f"P =\n {P.value}\n"
-                # debug += f"Q =\n {Q.value}\n"
-            # logging.debug(debug)
-        return verified
+            raise Exception(status)
 
 
 def build_M_out(S, weights, bias_vecs):
@@ -460,44 +454,17 @@ def _build_E(weights, k):
     return np.array(np.block([ E ]))
 
 
-if __name__ == '__main__':
-    # A, b = mat_for_k_class_polytope(1, 3)
-    # P = symbolic_relaxation_for_polytope(A, b)
-    # # P, constr = relaxation_for_polytope(A, b)
-    # logging.debug(P)
-    # exit()
-    x = [[9], [0]]
-    # weights = [
-        # [[1, 0,0,0],
-         # [0, 1,0,0],
-         # [0, 0,1,0]],
-        # [[2, 0, 0],
-         # [0, 2, 0]],
-        # [[3, 0],
-         # [0, 3]]
-    # ]
-    # bias_vecs =[
-        # [1,1,1],
-        # [2,2],
-        # [3,3],
-    # ]
-    # x = [[9], [0], [0], [0]]
-    # f = MultiLayerNN(weights, bias_vecs)
-    f = identity_map(2, 2)
+def quick_test_eps_robustness():
+    f = identity_map(2,2)
     cert = Certify(f)
-    eps = 0.5
-    # cert.build_symbolic_matrices(x=x, eps=eps)
-    # exit()
-    is_robust = cert.verify_at_point(x=x, eps=eps, verbose=True, max_iters=10**4)
-    exit()
-    for k in range(1, 6):
-        # is_robust = cert.verify_at_point(x=x, eps=eps, max_iters=10**k)
-        is_robust = cert.verify_at_point(x=x, eps=eps)
-        logging.info("P = \n")
-        logging.info(cert.P)
-        logging.info("Q = \n")
-        logging.info(cert.Q)
-    # logging.info(cert.P)
-    # x = [[0], [9]]
-    # is_robust = cert.verify_at_point(x=x, eps=eps)
-    # logging.info(f"Identity is {eps}-robust at {x}? {is_robust}")
+    eps = 8
+    x = [[9], [1.1]]
+    e_robust = cert.decide_eps_robustness(x, eps, verbose=True)
+
+    x_class = f.class_for_input(x)
+    print(f"f({x}) = class {x_class+1}")
+    print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
+
+
+if __name__ == '__main__':
+    quick_test_eps_robustness()

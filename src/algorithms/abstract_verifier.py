@@ -154,18 +154,6 @@ class AbstractVerifier():
         else:
             raise Exception(status)
 
-    def sep_hplane_for_advclass(self, x, complement=False):
-        fx = self.f(torch.tensor(np.array(x)).T.float()).detach().numpy()
-        class_order = np.argsort(fx)[0]
-        # index of component with largest value
-        x_class = class_order[-1]
-        # index of component with second largest value
-        adversarial_class = class_order[-2]
-        return _vector_for_separating_hyperplane(large_index=x_class,
-                                                 small_index=adversarial_class,
-                                                 n=fx.shape[1],
-                                                 complement=complement)
-
     def verify_counter_example(self, x, counter):
         # assert counter_example is not in safety set!
         assert self.f.class_for_input(x) != self.f.class_for_input(counter)
