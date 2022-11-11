@@ -31,3 +31,10 @@ def identity_test_eps_rob(tc, VerifAlg, x, eps, nn_depth, expect_robustness):
     except AssertionError as e:
         debug_eps_rob_failure(expect_robustness, x, eps, verif_alg)
 
+
+def identity_test(self, VerifAlg):
+    identity_test_eps_rob(self, VerifAlg, nn_depth=2,
+                          x=[[4], [4]], eps=1, expect_robustness=False)
+    identity_test_eps_rob(self, VerifAlg, nn_depth=2,
+                          x=[[9], [4]], eps=1, expect_robustness=True)
+
