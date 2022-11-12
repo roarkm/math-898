@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import logging
 
+
 class AbstractVerifier():
 
     def __init__(self, f=None):
@@ -21,7 +22,8 @@ class AbstractVerifier():
         if not self.f:
             s += "No nn provided."
         else:
-            s += f"f:R^{self.nn_weights[0].shape[1]} -> R^{self.nn_weights[-1].shape[0]}"
+            s += f"f:R^{self.nn_weights[0].shape[1]} \
+                    -> R^{self.nn_weights[-1].shape[0]}"
             s += f"\t{len(self.nn_weights)} layers"
         return s
 
@@ -33,7 +35,7 @@ class AbstractVerifier():
             return "NO CONSTRAINTS"
         s = "CONSTRAINTS\n"
         for c in constrs:
-            s += f"---------------------------------\n"
+            s += "---------------------------------\n"
             s += str(c)
             s += "\n"
         return s
@@ -46,11 +48,11 @@ class AbstractVerifier():
             return []
         _c = self._constraints
         if layer_id is not None:
-            _c = {k:v for (k,v) in _c.items() if k[0] == layer_id}
+            _c = {k: v for (k, v) in _c.items() if k[0] == layer_id}
         if constr_type is not None:
-            _c = {k:v for (k,v) in _c.items() if k[1] == constr_type}
+            _c = {k: v for (k, v) in _c.items() if k[1] == constr_type}
         if alg_type is not None:
-            _c = {k:v for (k,v) in _c.items() if k[2] == alg_type}
+            _c = {k: v for (k, v) in _c.items() if k[2] == alg_type}
         return list(_c.values())
 
     def add_free_var(self, var):
@@ -74,39 +76,44 @@ class AbstractVerifier():
 
     def str_opt_soln(self, var_name=None):
         s = ''
-        if var_name:
+        if var_name is not None:
             opt_var = self.free_vars(var_name=var_name)
             s += f"{opt_var.name()} =\n{opt_var.value}"
             return s
         for opt_var in self.free_vars(var_name=var_name):
             s += f"{opt_var.name()} =\n{opt_var.value}\n"
+            s += "------------------\n"
         return s
 
     def affine_layer_constraints(self, W, b, layer_id):
         # add constraint for affine transformation
-        self.add_free_var(cp.Variable((W.shape[0],1), f"z{layer_id}_hat")) # pre-activation
+        self.add_free_var(cp.Variable((W.shape[0], 1), f"z{layer_id}_hat"))
         self.add_constraint(
-            self.free_vars(f"z{layer_id}_hat") == W @ self.free_vars(f"z{layer_id-1}") + b,
+            (self.free_vars(f"z{layer_id}_hat")
+             == W @ self.free_vars(f"z{layer_id-1}") + b),
             layer_id=layer_id, constr_type='affine', alg_type=self.name)
 
-    def safety_set_constraints(self ,x, verbose=False):
+    def safety_set_constraints(self, x, tol=10**(-6), verbose=False):
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
         # and the next highest component
         x_class, adversarial_class = self.f.top_two_classes(x)
-        n = len(self.nn_weights) # depth of NN
+        n = len(self.nn_weights)  # depth of NN
         out_var = self.free_vars(f"z{n}").T
-        hplane_constraint = constraints_for_separating_hyperplane(out_var, x_class,
-                                                                  adversarial_class,
-                                                                  complement=True)
+        hplane_constraint = \
+            constraints_for_separating_hyperplane(out_var, x_class,
+                                                  adversarial_class,
+                                                  tol=tol,
+                                                  complement=True)
         self.add_constraint(hplane_constraint, layer_id=n,
-                            constr_type=f"output",
+                            constr_type="output",
                             alg_type=self.name)
 
     def decide_eps_robustness(self, x, eps, verbose=False):
         if self.get_constraints() == []:
             self.network_constraints(x, verbose=verbose)
-            c, fv = constraints_for_inf_ball(x, eps, free_vars=self.free_vars('z0'))
+            c, fv = constraints_for_inf_ball(x, eps,
+                                             free_vars=self.free_vars('z0'))
             self.add_constraint(c, 0, 'input', self.name)
             self.safety_set_constraints(x, verbose=verbose)
 
@@ -124,6 +131,7 @@ class AbstractVerifier():
 
         if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
             self.counter_example = self.free_vars('z0').value
+            self.verify_counter_example(x, self.counter_example)
             return False
         elif status == cp.INFEASIBLE:
             return True
@@ -135,7 +143,9 @@ class AbstractVerifier():
             self.network_constraints(x, verbose=verbose)
             self.safety_set_constraints(x, verbose=verbose)
 
-        obj = cp.Minimize(cp.atoms.norm_inf(np.array(x) - self.free_vars('z0')))
+        obj = cp.Minimize(
+            cp.atoms.norm_inf(np.array(x) - self.free_vars('z0'))
+        )
         self.prob = cp.Problem(obj, self.get_constraints())
         self.prob.solve(verbose=verbose,
                         max_iters=10**10,
@@ -149,6 +159,7 @@ class AbstractVerifier():
 
         if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
             self.counter_example = self.free_vars('z0').value
+            self.verify_counter_example(x, self.counter_example)
             return self.prob.value
         elif status == cp.INFEASIBLE:
             return self.prob.value
@@ -156,15 +167,13 @@ class AbstractVerifier():
             raise Exception(status)
 
     def verify_counter_example(self, x, counter):
-        # assert counter_example is not in safety set!
         assert self.f.class_for_input(x) != self.f.class_for_input(counter)
-        # # TODO: assert counter_example is in norm ball!
-        # input_constrs = self.get_constraints(constr_typ='input')
 
 
-def _vector_for_separating_hyperplane(large_index, small_index, n, complement=False):
+def _vector_for_separating_hyperplane(large_index, small_index,
+                                      n, complement=False):
     # create vector c for a seperating hyperplane
-    #    {x | c dot x >= 0 and x,c in R^n} = {x | x_large_index > x_small_index }
+    # {x | c dot x >= 0 and x,c in R^n} = {x | x_large_index > x_small_index }
     c = np.zeros((1, n))
     c[0][large_index] = 1
     c[0][small_index] = -1
@@ -174,6 +183,7 @@ def _vector_for_separating_hyperplane(large_index, small_index, n, complement=Fa
 
 
 def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
+                                          tol=10**(-6),
                                           verbose=False, complement=False):
     # create constraint for a seperating hyperplane in R^n
     # where n = dim(opt_vars)
@@ -183,16 +193,16 @@ def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
     c = _vector_for_separating_hyperplane(large_index, small_index,
                                           opt_vars.shape[1],
                                           complement=complement)
-    return opt_vars @ c >= np.zeros((1,1))
+    return opt_vars @ c >= tol * np.ones((1, 1))
 
 
 def mat_for_k_class_polytope(k, dim, complement=False):
-    assert complement == False, "Complement option not yet supported"
+    assert complement is False, "Complement option not yet supported"
     if dim == 1:
-        return np.zeros((1,1)), np.zeros((1,1))
+        return np.zeros((1, 1)), np.zeros((1, 1))
     n_rows = dim-1
     A = np.zeros((n_rows, dim))
-    A[:,k] = 1
+    A[:, k] = 1
     row = 0
     for j in range(0, dim):
         if j == k:
@@ -219,9 +229,9 @@ def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
     if free_vars is not None:
         assert free_vars.shape[0] == len(center)
     else:
-        if free_vars_name == None:
+        if free_vars_name is not None:
             free_vars_name = 'z0'
-        free_vars = cp.Variable((len(center),1), name=free_vars_name)
+        free_vars = cp.Variable((len(center), 1), name=free_vars_name)
 
     A_lt = np.zeros((2, len(center)))
     b_vec = np.zeros((2, 1))
@@ -239,14 +249,14 @@ def constraints_for_inf_ball(center, eps, free_vars=None, free_vars_name=None):
             row = np.zeros((1, len(center)))
             row[0][i] = 1
             A_lt = np.vstack([A_lt, row])
-            _a = np.array([[ float(center[i][0]) + eps ]])
+            _a = np.array([[float(center[i][0]) + eps]])
             b_vec = np.vstack([b_vec, _a])
 
             # bottom constraint
             row = np.zeros((1, len(center)))
             row[0][i] = -1
             A_lt = np.vstack([A_lt, row])
-            _a = np.array([[ -1 * (float(center[i][0]) - eps) ]])
+            _a = np.array([[-1 * (float(center[i][0]) - eps)]])
             b_vec = np.vstack([b_vec, _a])
     return A_lt @ free_vars <= b_vec, free_vars
 
