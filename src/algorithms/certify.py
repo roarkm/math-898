@@ -106,7 +106,6 @@ class Certify():
         self.constraints += [X << 0]
         return self.constraints
 
-    print(x)
     def decide_eps_robustness(self, x=[[9], [0]], eps=1,
                               verbose=False, max_iters=10**6):
 
@@ -291,7 +290,7 @@ def quick_test_eps_robustness():
     cert = Certify(f)
     eps = 8
     x = [[9], [1.1]]
-    e_robust = cert.decide_eps_robustness(x, eps, verbose=True)
+    e_robust = cert.decide_eps_robustness(x, eps, verbose=False)
 
     x_class = f.class_for_input(x)
     print(f"f({x}) = class {x_class+1}")
@@ -308,4 +307,4 @@ def symbolic_test():
 
 if __name__ == '__main__':
     quick_test_eps_robustness()
-    symbolic_test()
+    # symbolic_test()

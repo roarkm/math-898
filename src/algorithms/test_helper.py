@@ -28,7 +28,7 @@ def identity_test_eps_rob(tc, VerifAlg, x, eps, nn_depth, expect_robustness):
     r = verif_alg.decide_eps_robustness(x=x, eps=eps)
     try:
         tc.assertEqual(r, expect_robustness)
-    except AssertionError as e:
+    except AssertionError:
         debug_eps_rob_failure(expect_robustness, x, eps, verif_alg)
 
 
@@ -38,3 +38,7 @@ def identity_test(self, VerifAlg):
     identity_test_eps_rob(self, VerifAlg, nn_depth=2,
                           x=[[9], [4]], eps=1, expect_robustness=True)
 
+# def distance_from_decision_boundary(x):
+    # # calculate the inf-norm distance of x in R^2 from
+    # # the decision boundary of a binary classifier {x : x_1 == x_2}
+    # #
