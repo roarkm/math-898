@@ -1,8 +1,7 @@
 import torch
 import numpy as np
-from src.models.multi_layer import (MultiLayerNN,
-                                    null_map,
-                                    identity_map)
+from src.models.multi_layer import identity_map
+
 
 def debug_eps_rob_failure(expect_robustness, x, eps, v_alg):
     fx = v_alg.f(torch.tensor(x).float().T).detach().numpy()
@@ -12,7 +11,8 @@ def debug_eps_rob_failure(expect_robustness, x, eps, v_alg):
     if not expect_robustness:
         desc += " NOT"
 
-    err_str = f"\n{v_alg.f.name} {desc} be ({eps})-robust at: \n"
+    err_str = "\nTest Failure"
+    err_str += f"\n{v_alg.f.name} {desc} be ({eps})-robust at: \n"
     err_str += f"\t{x} |--> {x_class}\n"
     if expect_robustness:
         if (v_alg.name == 'ILP' or v_alg.name == 'NSVerify'):
@@ -37,8 +37,3 @@ def identity_test(self, VerifAlg):
                           x=[[4], [4]], eps=1, expect_robustness=False)
     identity_test_eps_rob(self, VerifAlg, nn_depth=2,
                           x=[[9], [4]], eps=1, expect_robustness=True)
-
-# def distance_from_decision_boundary(x):
-    # # calculate the inf-norm distance of x in R^2 from
-    # # the decision boundary of a binary classifier {x : x_1 == x_2}
-    # #
