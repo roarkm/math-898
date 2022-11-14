@@ -133,7 +133,8 @@ class AbstractVerifier():
             self.counter_example = self.free_vars('z0').value
             self.verify_counter_example(x, self.counter_example)
             return False
-        elif status == cp.INFEASIBLE:
+        elif (status == cp.INFEASIBLE) or \
+             (status == cp.INFEASIBLE_INACCURATE):
             return True
         else:
             raise Exception(status)
@@ -161,7 +162,8 @@ class AbstractVerifier():
             self.counter_example = self.free_vars('z0').value
             self.verify_counter_example(x, self.counter_example)
             return self.prob.value
-        elif status == cp.INFEASIBLE:
+        elif (status == cp.INFEASIBLE) or \
+             (status == cp.INFEASIBLE_INACCURATE):
             return self.prob.value
         else:
             raise Exception(status)
