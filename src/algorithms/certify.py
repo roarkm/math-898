@@ -6,7 +6,8 @@ import sympy as sp
 import numpy as np
 from scipy.linalg import block_diag
 
-from src.models.multi_layer import identity_map
+from src.models.multi_layer import (identity_map,
+                                    MultiLayerNN)
 
 from src.algorithms.abstract_verifier import _vector_for_separating_hyperplane
 
@@ -30,7 +31,7 @@ class Certify():
         if f:
             self.nn_weights, self.nn_bias_vecs = f.get_weights()
         logging.basicConfig(format='Certify-%(levelname)s:\n%(message)s',
-                            level=logging.INFO)
+                            level=logging.DEBUG)
 
     def sep_hplane_for_advclass(self, x, complement=True):
         out_shape = self.f(torch.tensor(x).T.float()).shape[1]
@@ -41,45 +42,60 @@ class Certify():
                                                  complement=complement)
 
     def build_symbolic_matrices(self, x=None, eps=1):
+        n = sum([w.shape[0] for w in self.nn_weights]) # num neurons in f
         x = np.array(x)
-        im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
+        dim_X = n + self.nn_weights[0].shape[1] + 1
+        # print(f"dim_X = {dim_X}")
 
+        # im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         d = 0
-        c = self.sep_hplane_for_advclass(im_x, complement=True)
-        logging.debug(c)
+        c = self.sep_hplane_for_advclass(x, complement=True)
+        # logging.debug(c)
 
         P = symbolic_relaxation_for_hypercube(x=x, epsilon=eps)
-        logging.info("P =")
-        logging.info(sp.pretty(P))
+        logging.info(f"P shape {P.shape} =")
+        # logging.info(sp.pretty(P))
+        assert P.shape == (x.shape[0]+1, x.shape[0]+1)
+
         M_in_P = symbolic_build_M_in(P, self.nn_weights, self.nn_bias_vecs)
-        logging.info("M_in_P =")
-        logging.info(sp.pretty(M_in_P))
+        logging.info(f"M_in_P shape {M_in_P.shape} =")
+        # logging.info(sp.pretty(M_in_P))
+        assert M_in_P.shape == (dim_X, dim_X)
 
         dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
         Q, Q_vars = symbolic_relaxation_for_relu(dim=dim)
-        logging.info("Q =")
-        logging.info(sp.pretty(Q))
+        logging.info(f"Q shape ({Q.shape}) = ")
+        # logging.info(sp.pretty(Q))
+        assert Q.shape[0] == 2*dim + 1
 
         M_mid_Q = symbolic_build_M_mid(Q=Q, weights=self.nn_weights,
                                        bias_vecs=self.nn_bias_vecs)
-        logging.info("M_mid_Q =")
-        logging.info(sp.pretty(M_mid_Q))
+        logging.info(f"M_mid_Q shape ({M_mid_Q.shape}) =")
+        # logging.info(sp.pretty(M_mid_Q))
+        assert M_mid_Q.shape == (dim_X, dim_X)
 
         S, S_vals = symbolic_relaxation_for_half_space(c=c,
                                                        d=d,
                                                        dim_x=self.nn_weights[0].shape[1])
-        logging.info(("S ="))
-        logging.info(sp.pretty(S.subs(S_vals)))
+        logging.info(f"S in ({S.shape}) =")
+        # logging.info(sp.pretty(S.subs(S_vals)))
 
         M_out_S, vals = symbolic_build_M_out(S, self.nn_weights,
                                              self.nn_bias_vecs)
-        # S_vals.update(vals)
-        logging.info("M_out_S =")
-        logging.info(sp.pretty(M_out_S.subs(S_vals)))
+        logging.info(f"M_out_S in ({M_out_S.shape}) =")
+        # logging.info(sp.pretty(S.subs(S_vals)))
+        S_vals.update(vals)
+        assert M_out_S.shape == (dim_X, dim_X)
+        # logging.info("M_out_S =")
+        # logging.info(sp.pretty(M_out_S.subs(S_vals)))
 
+        # print(M_in_P.shape)
+        # print(M_mid_Q.shape)
+        assert M_in_P.shape == M_mid_Q.shape
+        assert M_mid_Q.shape == M_out_S.shape
         X = M_in_P + M_mid_Q + M_out_S
-        logging.info("X =")
-        logging.info(sp.pretty(X))
+        # logging.info("X =")
+        # logging.info(sp.pretty(X))
 
     def network_constraints(self, x, eps, verbose=False):
         x = np.array(x)
@@ -127,7 +143,8 @@ class Certify():
             self.P = self.P.value
             self.Q = self.Q.value
             return False
-        elif status == cp.INFEASIBLE:
+        elif (status == cp.INFEASIBLE) or \
+             (status == cp.INFEASIBLE_INACCURATE):
             return True
         else:
             raise Exception(status)
@@ -298,13 +315,32 @@ def quick_test_eps_robustness():
 
 
 def symbolic_test():
-    f = identity_map(2, 2)
+    b = [
+        np.array([[1],
+                  [1]]),
+        np.array([[2],
+                  [2],
+                  [2]]),
+        np.array([[3],
+                  [3]]),
+    ]
+    weights = [
+        np.array([[1, 1, 1],
+                  [1, 1, 1]]),
+        np.array([[2, 2],
+                  [2, 2],
+                  [2, 2]]),
+        np.array([[3, 3, 3],
+                  [3, 3, 3]]),
+    ]
+    f = MultiLayerNN(weights, b)
+    # f = identity_map(2, 2)
     cert = Certify(f)
     eps = 8
-    x = [[9], [1.1]]
+    x = [[9], [1], [1]]
     cert.build_symbolic_matrices(x, eps)
 
 
 if __name__ == '__main__':
-    quick_test_eps_robustness()
-    # symbolic_test()
+    # quick_test_eps_robustness()
+    symbolic_test()

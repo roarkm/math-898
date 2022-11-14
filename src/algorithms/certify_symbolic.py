@@ -2,17 +2,28 @@ from itertools import combinations
 import numpy as np
 import sympy as sp
 from sympy import BlockDiagMatrix
+from src.models.multi_layer import (MultiLayerNN,
+                                    identity_map)
 
 
-def _build_E(weights, k):
-    E = []
-    r = weights[k].shape[1]
-    if k > 0:
-        E.append(np.zeros((r, sum([w.shape[1] for w in weights[:k]]))))
-    E.append(np.eye(r))
-    if k < len(weights)-1:
-        E.append(np.zeros((r, sum([w.shape[1] for w in weights[k+1:]]))))
-    return np.array(np.block([E]))
+def _build_E(weights, i):
+    assert i <= len(weights)-1
+    _E = []
+    if i == 0:
+        _E.append(np.eye(weights[i].shape[1]))
+        _E.append(np.zeros((weights[i].shape[1],
+                            sum([w.shape[0] for w in weights]))))
+        E = np.array(np.block([_E]))
+        return E
+    I_i = np.eye(weights[i].shape[1])
+    rows = I_i.shape[1]
+    _E.append(np.zeros((rows, weights[0].shape[1]))) # x_0
+    _E.append(np.zeros((rows, sum([w.shape[0] for w in weights[:i-1]]))))
+    _E.append(I_i)
+    _E.append(np.zeros((rows, sum([w.shape[0] for w in weights[i:]]))))
+    E = np.array(np.block([_E]))
+    assert E.shape[1] == (sum([w.shape[0] for w in weights]) + weights[0].shape[1])
+    return E
 
 
 def symbolic_build_M_out(S, weights, bias_vecs):
@@ -21,6 +32,7 @@ def symbolic_build_M_out(S, weights, bias_vecs):
     # There are no free variables in the returned matrix.
     E0 = sp.Matrix(_build_E(weights, 0))
     El = sp.Matrix(_build_E(weights, len(weights)-1))
+
     _E0 = sp.MatrixSymbol('E0', E0.shape[0], E0.shape[1])
     _El = sp.MatrixSymbol('El', El.shape[0], El.shape[1])
     _S = sp.MatrixSymbol('S', S.shape[0], S.shape[1])
@@ -43,6 +55,7 @@ def symbolic_build_M_in(P, weights, bias_vecs):
     # the region of interest in the input space of f (typically a hypercube)
     assert(P.shape[0] == weights[0].shape[1] + 1)
     E0 = _build_E(weights, 0)
+    # assert E0.shape
     E0 = sp.Matrix(E0)
     _in_ = sp.BlockMatrix([
         [E0,                       sp.zeros(E0.shape[0], 1)],
@@ -55,22 +68,40 @@ def symbolic_build_M_in(P, weights, bias_vecs):
 def symbolic_build_M_mid(Q, weights, bias_vecs):
     assert len(weights) == len(bias_vecs)
 
-    _m = sum([w.shape[0] for w in weights[:-1]])
+    A_weights = [sp.Matrix(w) for w in weights[:-1]]
+    A_rows = sum([w.shape[0] for w in A_weights])
+    bias_concat = sp.Matrix(np.concatenate(bias_vecs[:-1]))
 
-    sp_weights = [sp.Matrix(w) for w in weights]
     A = sp.BlockMatrix([
-        [BlockDiagMatrix(*sp_weights[0:-1]), sp.zeros(_m, weights[-1].shape[1])]
+        [BlockDiagMatrix(*A_weights),
+         sp.zeros(A_rows, weights[-1].shape[1]),
+         sp.zeros(A_rows, weights[-1].shape[0])]
     ])
-    _m = sum([w.shape[1] for w in weights[1:]])
+    # print(f"A in {A.shape}")
+    # sp.pprint(A)
+    assert A.shape[0] == bias_concat.shape[0]
+
+    B_d_mat = BlockDiagMatrix(*[sp.eye(w.shape[1]) for w in weights[1:]])
+    B_rows = B_d_mat.shape[0]
     B = sp.BlockMatrix([
-        [sp.zeros(_m, weights[0].shape[1]), BlockDiagMatrix(*[sp.eye(w.shape[1]) for w in weights[1:]])]
+        [sp.zeros(B_rows, weights[0].shape[1]),
+         B_d_mat,
+         sp.zeros(B_rows, weights[-1].shape[0])],
     ])
-    bias_concat = np.array([np.concatenate(bias_vecs[:-1])]).T
+    # print(f"B in {B.shape}")
+    # sp.pprint(B)
+    assert B.shape[0] == bias_concat.shape[0]
+    assert B.shape[1] == A.shape[1]
+
     _mid_ = sp.BlockMatrix([
         [A,                        sp.Matrix(bias_concat)],
         [B,                       sp.zeros(B.shape[0], 1)],
-        [sp.zeros(1, B.shape[1]),             sp.eye(1,1)]
+        [sp.zeros(1, B.shape[1]),               sp.eye(1)]
     ])
+    # print(f"_mid_ in {_mid_.shape}")
+    # sp.pprint(_mid_)
+    # this assertion maybe not universal
+    assert _mid_.shape[0] == Q.shape[1]
 
     M_mid_Q = _mid_.T @ Q @ _mid_
     return M_mid_Q
@@ -186,3 +217,36 @@ def symbolic_relaxation_for_half_space(c, d, dim_x):
         [sp.zeros(1, dim_x),     _c.T,                                  -2*_d]
     ])
     return S, vals
+
+if __name__ == '__main__':
+    b = [
+        np.array([[1],
+                  [1]]),
+        np.array([[2],
+                  [2],
+                  [2]]),
+        np.array([[3],
+                  [3]]),
+    ]
+    weights = [
+        np.array([[1, 1, 1],
+                  [1, 1, 1]]),
+        np.array([[2, 2],
+                  [2, 2],
+                  [2, 2]]),
+        np.array([[3, 3, 3],
+                  [3, 3, 3]]),
+    ]
+    # dim = (sum([w.shape[0] for w in weights[:-1]])
+         # + sum([w.shape[1] for w in weights[-1:]]))
+    print(_build_E(weights,0).shape)
+    print(_build_E(weights,2).shape)
+    exit()
+
+    dim = sum([w.shape[0] for w in weights[:-1]])
+    # print(dim)
+    Q, Q_vars = symbolic_relaxation_for_relu(dim=dim)
+    assert Q.shape[0] == 2*dim + 1
+    print(f"Q shape {Q.shape}")
+    symbolic_build_M_mid(Q=Q, weights=weights, bias_vecs=b)
+    exit()
