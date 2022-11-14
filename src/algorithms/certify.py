@@ -98,25 +98,36 @@ class Certify():
         # logging.info(sp.pretty(X))
 
     def network_constraints(self, x, eps, verbose=False):
+        n = sum([w.shape[0] for w in self.nn_weights]) # num neurons in f
         x = np.array(x)
+        dim_X = n + self.nn_weights[0].shape[1] + 1
+
         d = 0
         c = self.sep_hplane_for_advclass(x, complement=True)
 
         self.P, self.constraints, _ = _relaxation_for_hypercube(center=x,
                                                                 epsilon=eps)
+        assert self.P.shape == (x.shape[0]+1, x.shape[0]+1)
+
+        M_in_P = build_M_in(self.P, self.nn_weights, self.nn_bias_vecs)
+        assert M_in_P.shape == (dim_X, dim_X)
 
         dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
         self.Q, self.constraints = _build_Q_for_relu(dim=dim,
                                                      constraints=self.constraints)
-        self.S = _relaxation_for_half_space(c=c, d=d,
-                                            dim_x=self.nn_weights[0].shape[1])
+        assert self.Q.shape[0] == 2*dim + 1
 
-        M_in_P = build_M_in(self.P, self.nn_weights, self.nn_bias_vecs)
         M_mid_Q, self.constraints = build_M_mid(Q=self.Q,
                                                 constraints=self.constraints,
                                                 weights=self.nn_weights,
                                                 bias_vecs=self.nn_bias_vecs)
+        assert M_mid_Q.shape == (dim_X, dim_X)
+
+        self.S = _relaxation_for_half_space(c=c, d=d,
+                                            dim_x=self.nn_weights[0].shape[1])
+
         M_out_S = build_M_out(self.S, self.nn_weights, self.nn_bias_vecs)
+        assert M_mid_Q.shape == (dim_X, dim_X)
 
         X = M_in_P + M_mid_Q + M_out_S
         self.constraints += [X << 0]
@@ -232,26 +243,37 @@ def _build_Q_for_relu(dim, constraints=[]):
 def build_M_mid(Q, constraints, weights, bias_vecs, activ_func='relu'):
     assert len(weights) == len(bias_vecs)
 
-    _m = sum([w.shape[0] for w in weights[:-1]])
-    A = np.block([
-        [block_diag(*weights[0:-1]), np.zeros((_m, weights[-1].shape[1]))]
-    ])
-    _n = sum([w.shape[1] for w in weights])
-    assert A.shape == (_m, _n)
+    A_weights = [np.array(w) for w in weights[:-1]]
+    A_rows = sum([w.shape[0] for w in A_weights])
+    bias_concat = np.reshape(np.concatenate(bias_vecs[:-1]), (-1, 1))
 
-    _m = sum([w.shape[1] for w in weights[1:]])
-    B = np.block([
-        [np.zeros((_m, weights[0].shape[1])),
-            block_diag(*[np.eye(w.shape[1]) for w in weights[1:]])]
+    A = np.bmat([
+        [block_diag(*A_weights),
+         sp.zeros(A_rows, weights[-1].shape[1]),
+         sp.zeros(A_rows, weights[-1].shape[0])]
     ])
-    assert B.shape[1] == A.shape[1]
-    bias_concat = np.array([np.concatenate(bias_vecs[:-1])]).T
+    print(f"A in {A.shape}")
+    assert A.shape[0] == bias_concat.shape[0]
 
-    _mid_ = np.block([
-        [A,                                       bias_concat],
+    B_d_mat = block_diag(*[np.eye(w.shape[1]) for w in weights[1:]])
+    B_rows = B_d_mat.shape[0]
+    B = np.bmat([
+        [np.zeros((B_rows, weights[0].shape[1])),
+         B_d_mat,
+         np.zeros((B_rows, weights[-1].shape[0]))],
+    ])
+    print(f"B in {B.shape}")
+    assert B.shape == A.shape
+
+    _mid_ = np.bmat([
+        [A,                             np.array(bias_concat)],
         [B,                         np.zeros((B.shape[0], 1))],
-        [np.zeros((1, B.shape[1])),              np.eye(1, 1)]
+        [np.zeros((1, B.shape[1])),                 np.eye(1)]
     ])
+    print(f"_mid_ in {_mid_.shape}")
+    # # sp.pprint(_mid_)
+    # # this assertion maybe not universal
+    # assert _mid_.shape[0] == Q.shape[1]
 
     M_mid_Q = _mid_.T @ Q @ _mid_
     return M_mid_Q, constraints
@@ -303,10 +325,29 @@ def _relaxation_for_half_space(c, d, dim_x):
 
 
 def quick_test_eps_robustness():
-    f = identity_map(2, 2)
+    # f = identity_map(2, 2)
+    b = [
+        np.array([[1],
+                  [1]]),
+        np.array([[2],
+                  [2],
+                  [2]]),
+        np.array([[3],
+                  [3]]),
+    ]
+    weights = [
+        np.array([[1, 1, 1],
+                  [1, 1, 1]]),
+        np.array([[2, 2],
+                  [2, 2],
+                  [2, 2]]),
+        np.array([[3, 3, 3],
+                  [3, 3, 3]]),
+    ]
+    f = MultiLayerNN(weights, b)
     cert = Certify(f)
     eps = 8
-    x = [[9], [1.1]]
+    x = [[9], [1], [1]]
     e_robust = cert.decide_eps_robustness(x, eps, verbose=False)
 
     x_class = f.class_for_input(x)
@@ -342,5 +383,5 @@ def symbolic_test():
 
 
 if __name__ == '__main__':
-    # quick_test_eps_robustness()
-    symbolic_test()
+    quick_test_eps_robustness()
+    # symbolic_test()
