@@ -42,10 +42,11 @@ class Certify():
                                                  complement=complement)
 
     def build_symbolic_matrices(self, x=None, eps=1):
-        n = sum([w.shape[0] for w in self.nn_weights])  # num neurons in f
+        # for nn with final affine layer
+        n = sum([w.shape[0] for w in self.nn_weights[:-1]])
         x = np.array(x)
         dim_X = n + self.nn_weights[0].shape[1] + 1
-        # print(f"dim_X = {dim_X}")
+        print(f"dim_X = {dim_X}")
 
         # im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         d = 0
@@ -79,6 +80,8 @@ class Certify():
                                                        dim_x=self.nn_weights[0].shape[1])
         logging.info(f"S in ({S.shape}) =")
         # logging.info(sp.pretty(S.subs(S_vals)))
+        assert S.shape == (self.nn_weights[0].shape[1] + self.nn_weights[-1].shape[0] + 1,
+                           self.nn_weights[0].shape[1] + self.nn_weights[-1].shape[0] + 1)
 
         M_out_S, vals = symbolic_build_M_out(S, self.nn_weights,
                                              self.nn_bias_vecs)
@@ -358,5 +361,5 @@ def symbolic_test():
 
 
 if __name__ == '__main__':
-    quick_test_eps_robustness()
-    # symbolic_test()
+    # quick_test_eps_robustness()
+    symbolic_test()

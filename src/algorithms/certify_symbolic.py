@@ -7,7 +7,7 @@ from src.models.multi_layer import (MultiLayerNN,
 
 
 def _build_E(weights, i):
-    assert i <= len(weights)-1
+    assert (i == len(weights)-1) or (i == 0)
     _E = []
     if i == 0:
         _E.append(np.eye(weights[i].shape[1]))
@@ -15,23 +15,20 @@ def _build_E(weights, i):
                             sum([w.shape[0] for w in weights]))))
         E = np.array(np.block([_E]))
         return E
-    I_i = np.eye(weights[i].shape[1])
-    rows = I_i.shape[1]
-    _E.append(np.zeros((rows, weights[0].shape[1]))) # x_0
-    _E.append(np.zeros((rows, sum([w.shape[0] for w in weights[:i-1]]))))
-    _E.append(I_i)
-    _E.append(np.zeros((rows, sum([w.shape[0] for w in weights[i:]]))))
-    E = np.array(np.block([_E]))
-    assert E.shape[1] == (sum([w.shape[0] for w in weights]) + weights[0].shape[1])
-    return E
-
+    if i == len(weights)-1:
+        _E.append(np.zeros((weights[-1].shape[1],
+                            sum([w.shape[1] for w in weights[:-1]]))))
+        _E.append(np.eye(weights[-1].shape[1]))
+        E = np.array(np.block([_E]))
+        return E
 
 def symbolic_build_M_out(S, weights, bias_vecs):
     # S is specified by caller and quadratically overapproximates
     # the safety set in the graph of f.
     # There are no free variables in the returned matrix.
-    E0 = sp.Matrix(_build_E(weights, 0))
+    E0 = sp.Matrix(_build_E(weights[:-1], 0))
     El = sp.Matrix(_build_E(weights, len(weights)-1))
+    assert E0.shape[1] == El.shape[1]
 
     _E0 = sp.MatrixSymbol('E0', E0.shape[0], E0.shape[1])
     _El = sp.MatrixSymbol('El', El.shape[0], El.shape[1])
@@ -54,8 +51,8 @@ def symbolic_build_M_in(P, weights, bias_vecs):
     # P is specified by the caller and quadratically overapproximates
     # the region of interest in the input space of f (typically a hypercube)
     assert(P.shape[0] == weights[0].shape[1] + 1)
-    E0 = _build_E(weights, 0)
-    # assert E0.shape
+    E0 = _build_E(weights[:-1], 0)
+    # print(f"E0 shape {E0.shape}")
     E0 = sp.Matrix(E0)
     _in_ = sp.BlockMatrix([
         [E0,                       sp.zeros(E0.shape[0], 1)],
@@ -74,8 +71,7 @@ def symbolic_build_M_mid(Q, weights, bias_vecs):
 
     A = sp.BlockMatrix([
         [BlockDiagMatrix(*A_weights),
-         sp.zeros(A_rows, weights[-1].shape[1]),
-         sp.zeros(A_rows, weights[-1].shape[0])]
+         sp.zeros(A_rows, weights[-1].shape[1])]
     ])
     # print(f"A in {A.shape}")
     # sp.pprint(A)
@@ -84,9 +80,7 @@ def symbolic_build_M_mid(Q, weights, bias_vecs):
     B_d_mat = BlockDiagMatrix(*[sp.eye(w.shape[1]) for w in weights[1:]])
     B_rows = B_d_mat.shape[0]
     B = sp.BlockMatrix([
-        [sp.zeros(B_rows, weights[0].shape[1]),
-         B_d_mat,
-         sp.zeros(B_rows, weights[-1].shape[0])],
+        [sp.zeros(B_rows, weights[0].shape[1]), B_d_mat]
     ])
     # print(f"B in {B.shape}")
     # sp.pprint(B)
