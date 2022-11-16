@@ -5,17 +5,19 @@ import numpy as np
 
 class MultiLayerNN(nn.Module):
 
-    def __init__(self, weights, bias_vecs, name='GenericNN'):
+    def __init__(self, weights, bias_vecs, name='GenericNN', final_relu=True):
         super(MultiLayerNN, self).__init__()
         self.name = name
         self.relu = nn.ReLU()
+        self.final_relu = final_relu
         self.layers = nn.ModuleList()
-        self.init_weights(weights, bias_vecs)
+        self.init_weights(weights, bias_vecs, self.final_relu)
         self.in_dim = self.layers[0].weight.data.shape[1]
 
     def __str__(self):
-        in_dim = self.layers[0].weight.data.shape[1]
-        out_dim = self.layers[-1].weight.data.shape[0]
+        weights, _ = self.get_weights()
+        in_dim = weights[0].data.shape[1]
+        out_dim = weights[-1].data.shape[0]
         s = self.name
         s += f"f:R^{in_dim} -> R^{out_dim} \n"
         for i, l in enumerate(self.layers):
@@ -37,7 +39,7 @@ class MultiLayerNN(nn.Module):
                 # after the first layer
                 assert w.shape[1] == weights[i-1].shape[0]
 
-    def init_weights(self, weights, bias_vecs):
+    def init_weights(self, weights, bias_vecs, final_relu):
         weights = [np.array(w) for w in weights]
         bias_vecs = [np.reshape(np.array(b), (len(b),)) for b in bias_vecs]
         self.verify_weight_dims(weights, bias_vecs)
@@ -48,7 +50,8 @@ class MultiLayerNN(nn.Module):
                 l.weight.copy_(torch.tensor(w))
                 l.bias.copy_(torch.tensor(b))
                 self.layers.append(l)
-                self.layers.append(self.relu)
+                if i < len(weights) - 1 or final_relu:
+                    self.layers.append(self.relu)
         return
 
     def forward(self, x):
