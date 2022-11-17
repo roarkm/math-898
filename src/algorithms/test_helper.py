@@ -16,7 +16,11 @@ def debug_eps_rob_failure(expect_robustness, x, eps, v_alg):
     err_str += f"\t{x} |--> {x_class}\n"
     if expect_robustness:
         if (v_alg.name == 'ILP' or v_alg.name == 'NSVerify'):
-            err_str += f"\tFound Counterexample: {v_alg.counter_example.T}"
+            err_str += "\tFound Counterexample:\n"
+            ce = torch.tensor(v_alg.counter_example).T.float()
+            err_str += (f"\tf({v_alg.counter_example.T}) = "
+                        f"{v_alg.f.forward(ce).detach().numpy()} |--> "
+                        f"{v_alg.f.class_for_input(v_alg.counter_example)}")
     print(err_str)
 
 
