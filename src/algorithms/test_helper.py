@@ -30,10 +30,12 @@ def identity_test_eps_rob(tc, VerifAlg, x, eps, nn_depth, expect_robustness):
         tc.assertEqual(r, expect_robustness)
     except AssertionError:
         debug_eps_rob_failure(expect_robustness, x, eps, verif_alg)
+        del f
+        del verif_alg
 
 
 def identity_test(self, VerifAlg):
     identity_test_eps_rob(self, VerifAlg, nn_depth=2,
-                          x=[[4], [4]], eps=1, expect_robustness=False)
+                          x=[[9], [1]], eps=1, expect_robustness=True)
     identity_test_eps_rob(self, VerifAlg, nn_depth=2,
-                          x=[[9], [4]], eps=1, expect_robustness=True)
+                          x=[[4], [4]], eps=1, expect_robustness=False)
