@@ -38,4 +38,4 @@ def identity_test(self, VerifAlg):
     identity_test_eps_rob(self, VerifAlg, nn_depth=2,
                           x=[[9], [1]], eps=1, expect_robustness=True)
     identity_test_eps_rob(self, VerifAlg, nn_depth=2,
-                          x=[[4], [4]], eps=1, expect_robustness=False)
+                          x=[[4], [4.00001]], eps=1, expect_robustness=False)

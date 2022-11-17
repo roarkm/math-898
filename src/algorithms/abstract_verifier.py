@@ -85,6 +85,12 @@ class AbstractVerifier():
             s += "------------------\n"
         return s
 
+    def assert_valid_ref_point(self, x):
+        fx = self.f.forward(torch.tensor(x).T.float()).detach().numpy().T
+        sorted_img = np.sort(fx)
+        assert sorted_img[0] != sorted_img[1], \
+               f"Ambiguous reference input: {x} |--> {fx.T}"
+
     def affine_layer_constraints(self, W, b, layer_id):
         # add constraint for affine transformation
         self.add_free_var(cp.Variable((W.shape[0], 1), f"z{layer_id}_hat"))
@@ -110,6 +116,7 @@ class AbstractVerifier():
                             alg_type=self.name)
 
     def decide_eps_robustness(self, x, eps, verbose=False):
+        self.assert_valid_ref_point(x)
         if self.get_constraints() == []:
             self.network_constraints(x, verbose=verbose)
             c, fv = constraints_for_inf_ball(x, eps,
@@ -140,6 +147,7 @@ class AbstractVerifier():
             raise Exception(status)
 
     def compute_robustness(self, x, verbose=False):
+        self.assert_valid_ref_point(x)
         if self.get_constraints() == []:
             self.network_constraints(x, verbose=verbose)
             self.safety_set_constraints(x, verbose=verbose)

@@ -140,7 +140,6 @@ class Certify():
         self.constraints += [X << 0]
         return self.constraints
 
-
     def str_constraints(self):
         s = ''
         for c in self.constraints:
@@ -149,10 +148,16 @@ class Certify():
             s += "\n"
         return s
 
+    def assert_valid_ref_point(self, x):
+        fx = self.f.forward(torch.tensor(x).T.float()).detach().numpy().T
+        sorted_img = np.sort(fx)
+        assert sorted_img[0] != sorted_img[1], \
+               f"Ambiguous reference input: {x} |--> {fx.T}"
 
     def decide_eps_robustness(self, x=[[9], [0]], eps=1,
                               verbose=False, max_iters=10**6):
 
+        self.assert_valid_ref_point(x)
         self.network_constraints(x=x, eps=eps, verbose=verbose)
         prob = cp.Problem(cp.Minimize(1), self.constraints)
         prob.solve(verbose=verbose,
