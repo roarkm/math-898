@@ -46,7 +46,6 @@ class Certify():
         n = sum([w.shape[0] for w in self.nn_weights[:-1]])
         x = np.array(x)
         dim_X = n + self.nn_weights[0].shape[1] + 1
-        print(f"dim_X = {dim_X}")
 
         # im_x = self.f(torch.tensor(x).T.float()).data.T.tolist()
         d = 0
@@ -102,12 +101,11 @@ class Certify():
 
     def network_constraints(self, x, eps, verbose=False):
         # for nn with final affine layer
-        n = sum([w.shape[0] for w in self.nn_weights[:-1]])  # num neurons in f
         x = np.array(x)
+        n = sum([w.shape[0] for w in self.nn_weights[:-1]])
         dim_X = n + self.nn_weights[0].shape[1] + 1
 
-        d = 0
-        c = self.sep_hplane_for_advclass(x, complement=True)
+        # input relaxation (with free vars)
         self.P, self.constraints, _ = _relaxation_for_hypercube(center=x,
                                                                 epsilon=eps)
         assert self.P.shape == (x.shape[0]+1, x.shape[0]+1)
@@ -115,26 +113,42 @@ class Certify():
         M_in_P = build_M_in(self.P, self.nn_weights, self.nn_bias_vecs)
         assert M_in_P.shape == (dim_X, dim_X)
 
+        # relu relaxation (with free vars)
         dim = sum([w.shape[0] for w in self.nn_weights[:-1]])
         self.Q, self.constraints = _build_Q_for_relu(dim=dim,
                                                      constraints=self.constraints)
         assert self.Q.shape[0] == 2*dim + 1
+
         M_mid_Q, self.constraints = build_M_mid(Q=self.Q,
                                                 constraints=self.constraints,
                                                 weights=self.nn_weights,
                                                 bias_vecs=self.nn_bias_vecs)
         assert M_mid_Q.shape == (dim_X, dim_X)
 
+        # output relaxation (fixed)
+        d = 0
+        c = self.sep_hplane_for_advclass(x, complement=True)
         self.S = _relaxation_for_half_space(c=c, d=d,
                                             dim_x=self.nn_weights[0].shape[1])
         assert self.S.shape == (self.nn_weights[0].shape[1] + self.nn_weights[-1].shape[0] + 1,
                            self.nn_weights[0].shape[1] + self.nn_weights[-1].shape[0] + 1)
+
         M_out_S = build_M_out(self.S, self.nn_weights, self.nn_bias_vecs)
         assert M_mid_Q.shape == (dim_X, dim_X)
 
         X = M_in_P + M_mid_Q + M_out_S
         self.constraints += [X << 0]
         return self.constraints
+
+
+    def str_constraints(self):
+        s = ''
+        for c in self.constraints:
+            s += f"Constraint {c.constr_id} -----------------------------\n"
+            s += str(c)
+            s += "\n"
+        return s
+
 
     def decide_eps_robustness(self, x=[[9], [0]], eps=1,
                               verbose=False, max_iters=10**6):
@@ -200,15 +214,15 @@ def _build_T(dim, constraints=[]):
     T = cp.bmat(np.zeros((dim, dim)))
     index_combos = list(combinations(range(0, dim), 2))
     lambdas_ij = cp.Variable(len(index_combos), name='lambda_ij')
-    constraints += [lambdas_ij >= 0]
+    _constraints = [lambdas_ij >= 0]
     for k, (i, j) in enumerate(index_combos):
         ei = np.zeros((dim, 1))
         ei[i] = 1
         ej = np.zeros((dim, 1))
         ej[j] = 1
         v = cp.bmat([ei - ej])
-        T += lambdas_ij[k] * (v @ v.T)
-    return T, constraints
+        T += lambdas_ij[k] * cp.matmul(v.T, v)
+    return T, _constraints
 
 
 def _build_Q_for_relu(dim, constraints=[]):
@@ -313,7 +327,7 @@ def relaxation_for_polytope(H, b):
 def _relaxation_for_half_space(c, d, dim_x):
     # for half space defined by {y : cy < d} (in the output space of NN)
     # dim_x is the input space dimension of the NN
-    dim_c = c.shape[0]
+    dim_c = c.shape[0]  # output dimension of NN
     S = np.block([
         [np.zeros((dim_x, dim_x)), np.zeros((dim_x, dim_c)), np.zeros((dim_x, 1))],
         [np.zeros((dim_c, dim_x)), np.zeros((dim_c, dim_c)),                    c],
@@ -323,29 +337,31 @@ def _relaxation_for_half_space(c, d, dim_x):
 
 
 def quick_test_eps_robustness():
-    # f = identity_map(2, 2)
-    b = [
-        np.array([[1],
-                  [1]]),
-        np.array([[2],
-                  [2],
-                  [2]]),
-        np.array([[3],
-                  [3]]),
-    ]
-    weights = [
-        np.array([[1, 1, 1],
-                  [1, 1, 1]]),
-        np.array([[2, 2],
-                  [2, 2],
-                  [2, 2]]),
-        np.array([[3, 3, 3],
-                  [3, 3, 3]]),
-    ]
-    f = MultiLayerNN(weights, b)
+    # b = [
+        # np.array([[1],
+                  # [1]]),
+        # np.array([[2],
+                  # [2],
+                  # [2]]),
+        # np.array([[3],
+                  # [3]]),
+    # ]
+    # weights = [
+        # np.array([[1, 1, 1],
+                  # [1, 1, 1]]),
+        # np.array([[2, 2],
+                  # [2, 2],
+                  # [2, 2]]),
+        # np.array([[3, 3, 3],
+                  # [3, 3, 3]]),
+    # ]
+    # f = MultiLayerNN(weights, b)
+    # x = [[5], [1], [1]]
+
+    f = identity_map(2, 2)
+    x = [[9], [1]]
     cert = Certify(f)
     eps = 1
-    x = [[5], [1], [1]]
     e_robust = cert.decide_eps_robustness(x, eps, verbose=False)
 
     x_class = f.class_for_input(x)
