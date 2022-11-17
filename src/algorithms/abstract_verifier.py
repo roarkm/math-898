@@ -138,7 +138,7 @@ class AbstractVerifier():
 
         if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
             self.counter_example = self.free_vars('z0').value
-            self.verify_counter_example(x, self.counter_example)
+            # self.verify_counter_example(x, self.counter_example)
             return False
         elif (status == cp.INFEASIBLE) or \
              (status == cp.INFEASIBLE_INACCURATE):
@@ -168,7 +168,7 @@ class AbstractVerifier():
 
         if (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
             self.counter_example = self.free_vars('z0').value
-            self.verify_counter_example(x, self.counter_example)
+            # self.verify_counter_example(x, self.counter_example)
             return self.prob.value
         elif (status == cp.INFEASIBLE) or \
              (status == cp.INFEASIBLE_INACCURATE):
@@ -203,7 +203,7 @@ def constraints_for_separating_hyperplane(opt_vars, large_index, small_index,
     c = _vector_for_separating_hyperplane(large_index, small_index,
                                           opt_vars.shape[1],
                                           complement=complement)
-    return opt_vars @ c >= tol * np.ones((1, 1))
+    return opt_vars @ c >= tol
 
 
 def mat_for_k_class_polytope(k, dim, complement=False):

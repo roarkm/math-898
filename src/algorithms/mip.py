@@ -45,22 +45,29 @@ class MIPVerifier(AbstractVerifier):
         self.add_constraint(c, layer_id=layer_id,
                             constr_type='relu_1',
                             alg_type='mip')
-
-        # z_ij <= z_ij_hat + M(1 - d_ij)
+        # z_ij >= 0
         c = (self.free_vars(f"z{layer_id}")
-             <= (self.free_vars(f"z{layer_id}_hat")
-                 + cp.multiply(self.M, (np.ones((Wi.shape[0], 1))
-                                        - self.free_vars(f"d{layer_id}")))))
+             >= np.zeros((Wi.shape[0], 1)))
         self.add_constraint(c, layer_id=layer_id,
                             constr_type='relu_2',
                             alg_type='mip')
 
-        # z_ij_hat > 0 implies d_ij == 1 iff z_ij <= M * d_ij
-        c = (self.free_vars(f"z{layer_id}_hat")
+        # z_ij <= z_ij_hat + M(1 - d_ij)
+        c = (self.free_vars(f"z{layer_id}")
+             <= (self.free_vars(f"z{layer_id}_hat")
+                 + cp.multiply(self.M,
+                               (np.ones((Wi.shape[0], 1))
+                                - self.free_vars(f"d{layer_id}")))))
+        self.add_constraint(c, layer_id=layer_id,
+                            constr_type='relu_3',
+                            alg_type='mip')
+
+        #  z_ij <= M * d_ij
+        c = (self.free_vars(f"z{layer_id}")
              <= cp.multiply(self.M, self.free_vars(f"d{layer_id}")))
         self.add_constraint(c,
                             layer_id=layer_id,
-                            constr_type='relu_3',
+                            constr_type='relu_4',
                             alg_type='mip')
 
     def network_constraints(self, _=None, verbose=False):
@@ -88,17 +95,19 @@ def quick_test_eps_robustness():
     f = identity_map(2, 2)
     mip = MIPVerifier(f)
     eps = 1
-    x = [[9], [3]]
+    # x = [[4], [4.01]]
+    x = [[9], [1]]
     e_robust = mip.decide_eps_robustness(x, eps)
 
     # print(mip.str_constraints())
+    # print(mip.str_opt_soln())
 
     x_class = f.class_for_input(x)
-    print(f"f({x}) = class {x_class+1}")
+    print(f"f({x}) = class {x_class}")
     print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
     if not e_robust:
         ce = mip.counter_example
-        print(f"Counterexample: f({ce}) = class {f.class_for_input(ce)+1}")
+        print(f"Counterexample: f({ce}) = class {f.class_for_input(ce)}")
 
 
 def quick_test_pointwise_robustness():
