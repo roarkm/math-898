@@ -3,6 +3,31 @@ import numpy as np
 from src.models.multi_layer import identity_map
 
 
+def identity_test_pw_rob(tc, VerifAlg, x, nn_depth, expected_eps):
+    dim = len(x)
+    f = identity_map(dim, nn_depth)
+    verif_alg = VerifAlg(f)
+
+    eps_hat = verif_alg.compute_robustness(x=x)
+    try:
+        tc.assertAlmostEqual(eps_hat, expected_eps, places=4)
+    except AssertionError:
+        debug_pw_rob_failure(expected_eps, x, eps_hat, verif_alg)
+        del f
+        del verif_alg
+
+
+def debug_pw_rob_failure(expected_eps, x, eps_hat, v_alg):
+    fx = v_alg.f(torch.tensor(x).float().T).detach().numpy()
+    err_str = "\nTest Failure"
+    err_str += (f"\nExpected {v_alg.f.name} to have "
+                f"nearest counter example at {expected_eps} distance\n")
+    err_str += f"\tFrom {x} |--> {fx}\n"
+    err_str += f"\tFound Counter Example: {v_alg.counter_example.T}\n"
+    err_str += f"\tAt distance {eps_hat}."
+    print(err_str)
+
+
 def debug_eps_rob_failure(expect_robustness, x, eps, v_alg):
     fx = v_alg.f(torch.tensor(x).float().T).detach().numpy()
     x_class = np.argsort(fx)[0][-1]
@@ -36,10 +61,3 @@ def identity_test_eps_rob(tc, VerifAlg, x, eps, nn_depth, expect_robustness):
         debug_eps_rob_failure(expect_robustness, x, eps, verif_alg)
         del f
         del verif_alg
-
-
-def identity_test(self, VerifAlg):
-    identity_test_eps_rob(self, VerifAlg, nn_depth=2,
-                          x=[[9], [1]], eps=1, expect_robustness=True)
-    identity_test_eps_rob(self, VerifAlg, nn_depth=2,
-                          x=[[4], [4.00001]], eps=1, expect_robustness=False)
