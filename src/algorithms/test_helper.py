@@ -18,6 +18,11 @@ ER_TEST_CASES = [
          'eps': 1,
          'expect': False
     },
+    # {  # if called again, this fails with Certify!
+         # 'x': [[4], [4.5]],
+         # 'eps':0.00000000001,
+         # 'expect': True
+    # },
 ]
 
 PW_TEST_CASES = [
@@ -48,7 +53,7 @@ def identity_test_pw_rob(tc, VerifAlg, x, nn_depth, expected_eps):
 
 def debug_pw_rob_failure(expected_eps, x, eps_hat, v_alg):
     fx = v_alg.f(torch.tensor(x).float().T).detach().numpy()
-    err_str = "\nTest Failure"
+    err_str = f"\n{v_alg.name} Test Failure"
     err_str += (f"\nExpected {v_alg.f.name} to have "
                 f"nearest counter example at {expected_eps} distance\n")
     err_str += f"\tFrom {x} |--> {fx}\n"
@@ -65,7 +70,7 @@ def debug_eps_rob_failure(expect_robustness, x, eps, v_alg):
     if not expect_robustness:
         desc += " NOT"
 
-    err_str = "\nTest Failure"
+    err_str = f"\n{v_alg.name} Test Failure"
     err_str += f"\n{v_alg.f.name} {desc} be ({eps})-robust at: \n"
     err_str += f"\t{x} |--> {x_class}\n"
     if expect_robustness:
