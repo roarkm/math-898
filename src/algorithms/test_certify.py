@@ -1,17 +1,16 @@
 import unittest
 from src.algorithms.certify import Certify
-from src.algorithms.test_helper import identity_test_eps_rob
+from src.algorithms.test_helper import (identity_test_eps_rob,
+                                        ER_TEST_CASES)
 
 
 class TestCertify(unittest.TestCase):
 
     def test_eps_robustness(self):
-        identity_test_eps_rob(self, Certify, nn_depth=2,
-                              x=[[9], [1]], eps=1,
-                              expect_robustness=True)
-        identity_test_eps_rob(self, Certify, nn_depth=2,
-                              x=[[4], [4.00001]], eps=1,
-                              expect_robustness=False)
+        for t in ER_TEST_CASES:
+            identity_test_eps_rob(self, Certify, nn_depth=2,
+                                  x=t['x'], eps=t['eps'],
+                                  expect_robustness=t['expect'])
 
 
 if __name__ == '__main__':

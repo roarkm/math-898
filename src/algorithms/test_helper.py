@@ -2,6 +2,35 @@ import torch
 import numpy as np
 from src.models.multi_layer import identity_map
 
+ER_TEST_CASES = [
+    {
+         'x': [[9], [1]],
+         'eps': 1,
+         'expect': True
+    },
+    {
+         'x': [[4], [4.5]],
+         'eps':0.00000000001,
+         'expect': True
+    },
+    {
+         'x': [[4], [4.00001]],
+         'eps': 1,
+         'expect': False
+    },
+]
+
+PW_TEST_CASES = [
+    {
+        'x': [[9], [1]],
+        'expected_eps': 4
+    },
+    {
+        'x': [[4], [4.0001]],
+        'expected_eps': 0.000005
+    }
+]
+
 
 def identity_test_pw_rob(tc, VerifAlg, x, nn_depth, expected_eps):
     dim = len(x)
