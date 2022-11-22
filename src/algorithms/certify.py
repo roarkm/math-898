@@ -154,16 +154,16 @@ class Certify():
         assert sorted_img[0] != sorted_img[1], \
                f"Ambiguous reference input: {x} |--> {fx.T}"
 
-    def decide_eps_robustness(self, x=[[9], [0]], eps=1,
-                              verbose=False, max_iters=10**6):
-
+    def _build_eps_robustness_prob(self, x=[[9], [0]], eps=1, verbose=False):
         self.assert_valid_ref_point(x)
         self.network_constraints(x=x, eps=eps, verbose=verbose)
-        prob = cp.Problem(cp.Minimize(1), self.constraints)
-        prob.solve(verbose=verbose,
-                   max_iters=max_iters,
-                   solver=cp.CVXOPT)
-        status = prob.status
+        self.prob = cp.Problem(cp.Minimize(1), self.constraints)
+
+    def _decide_eps_robustness(self, verbose=False, max_iters=10**6):
+        self.prob.solve(verbose=verbose,
+                        max_iters=max_iters,
+                        solver=cp.CVXOPT)
+        status = self.prob.status
 
         if (status == cp.OPTIMAL_INACCURATE) or \
            (status == cp.INFEASIBLE_INACCURATE) or \
@@ -182,6 +182,11 @@ class Certify():
             return False
         else:
             raise Exception(status)
+
+    def decide_eps_robustness(self, x=[[9], [0]], eps=1,
+                              verbose=False, max_iters=10**6):
+        self._build_eps_robustness_prob(x, eps, verbose)
+        return self._decide_eps_robustness(verbose, max_iters)
 
     def compute_robustness(self, x, verbose=False):
         raise Exception("compute_robustness() not supported by Certify.")
