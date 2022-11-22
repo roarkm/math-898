@@ -115,7 +115,7 @@ class AbstractVerifier():
                             constr_type="output",
                             alg_type=self.name)
 
-    def decide_eps_robustness(self, x, eps, verbose=False):
+    def _build_eps_robustness_problem(self, x, eps, verbose=False):
         self.assert_valid_ref_point(x)
         if self.get_constraints() == []:
             self.network_constraints(x, verbose=verbose)
@@ -126,6 +126,8 @@ class AbstractVerifier():
 
         obj = cp.Minimize(1)
         self.prob = cp.Problem(obj, self.get_constraints())
+
+    def _decide_eps_robustness(self, verbose):
         self.prob.solve(verbose=verbose,
                         max_iters=10**10,
                         solver=self.solver)
@@ -146,7 +148,12 @@ class AbstractVerifier():
         else:
             raise Exception(status)
 
-    def compute_robustness(self, x, verbose=False):
+    def decide_eps_robustness(self, x, eps, verbose=False):
+        self._build_eps_robustness_problem(x, eps, verbose)
+        return self._decide_eps_robustness(verbose)
+
+
+    def _build_pw_robustness(self, x, verbose=False):
         self.assert_valid_ref_point(x)
         if self.get_constraints() == []:
             self.network_constraints(x, verbose=verbose)
@@ -156,6 +163,8 @@ class AbstractVerifier():
             cp.atoms.norm_inf(np.array(x) - self.free_vars('z0'))
         )
         self.prob = cp.Problem(obj, self.get_constraints())
+
+    def _compute_robustness(self, verbose=False):
         self.prob.solve(verbose=verbose,
                         max_iters=10**10,
                         solver=self.solver)
@@ -175,6 +184,10 @@ class AbstractVerifier():
             return self.prob.value
         else:
             raise Exception(status)
+
+    def compute_robustness(self, x, verbose=False):
+        self._build_pw_robustness(x, verbose)
+        return self._compute_robustness(verbose)
 
     def verify_counter_example(self, x, counter):
         assert self.f.class_for_input(x) != self.f.class_for_input(counter)
