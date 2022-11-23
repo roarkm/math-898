@@ -11,24 +11,25 @@ import hashlib
 import time
 
 
-# def meta_file_name(f, ):
-
 def experiment_hash(layer_widths, max_iters, solver):
     data = layer_widths + [max_iters] + [solver]
     return hashlib.sha1(str(data).encode('utf-8')).hexdigest()
 
+
 def log_file_name(algo_name, alg_type, layer_widths, max_iters, solver):
     return f"{algo_name}_{alg_type}_{experiment_hash(layer_widths, max_iters, solver)}_log.csv"
+
 
 def meta_file_name(algo_name, alg_type, layer_widths, max_iters, solver):
     return f"{algo_name}_{alg_type}_{experiment_hash(layer_widths, max_iters, solver)}_meta.csv"
 
+
 def random_x():
     return [[1], [1.001]]
 
-def run_exp(VAlg, num_runs, alg_type):
 
-    f = identity_map(2,2)
+def run_exp(VAlg, num_runs, alg_type):
+    f = identity_map(2, 2)
     alg = VAlg(f)
 
     meta_fieldnames = {
@@ -36,11 +37,14 @@ def run_exp(VAlg, num_runs, alg_type):
         'max_iters': alg.max_iters,
         'solver': alg.solver,
         'exp_type': alg_type,
+        'layer_widths': '_'.join([str(d) for d in f.weight_dims()]),
+        'depth': len(f.weight_dims())
     }
     meta_file = meta_file_name(alg.name, alg_type,
                                f.weight_dims(), alg.max_iters, alg.solver)
     exp_dir = "experiment_logs"
-    with open(f"{exp_dir}/{meta_file}", 'w', encoding='UTF8', newline='') as meta_f:
+    with open(f"{exp_dir}/{meta_file}",
+              'w', encoding='UTF8', newline='') as meta_f:
         writer = csv.DictWriter(meta_f, fieldnames=meta_fieldnames.keys())
         writer.writeheader()
         writer.writerow(meta_fieldnames)
@@ -58,7 +62,8 @@ def run_exp(VAlg, num_runs, alg_type):
     ]
     del alg
 
-    with open(f"{exp_dir}/{log_file}", 'w', encoding='UTF8', newline='') as log_f:
+    with open(f"{exp_dir}/{log_file}",
+              'w', encoding='UTF8', newline='') as log_f:
         writer = csv.DictWriter(log_f, fieldnames=exp_features)
         writer.writeheader()
         for i in range(num_runs):
@@ -92,4 +97,4 @@ def run_exp(VAlg, num_runs, alg_type):
 
 
 if __name__ == '__main__':
-    run_exp(ILP, num_runs=2, alg_type='ER')
+    run_exp(ILP, num_runs=100, alg_type='ER')
