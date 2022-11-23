@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import cvxpy as cp
 from src.models.multi_layer import (MultiLayerNN,
+                                    custom_net,
                                     identity_map)
 from src.algorithms.abstract_verifier import (AbstractVerifier,
                                               constraints_for_separating_hyperplane)
@@ -103,6 +104,10 @@ def quick_test_pointwise_robustness():
     print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
     print(f"Nearest adversarial example is \n{ilp.counter_example}.")
 
+def custom_net_trace():
+    print('do it')
+
 if __name__ == '__main__':
-    quick_test_eps_robustness()
-    quick_test_pointwise_robustness()
+    custom_net_trace()
+    # quick_test_eps_robustness()
+    # quick_test_pointwise_robustness()
