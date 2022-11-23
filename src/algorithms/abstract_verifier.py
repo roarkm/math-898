@@ -89,7 +89,7 @@ class AbstractVerifier():
     def assert_valid_ref_point(self, x):
         fx = self.f.forward(torch.tensor(x).T.float()).detach().numpy().T
         sorted_img = np.sort(fx)
-        assert sorted_img[0] != sorted_img[1], \
+        assert sorted_img[-1] != sorted_img[-2], \
                f"Ambiguous reference input: {x} |--> {fx.T}"
 
     def affine_layer_constraints(self, W, b, layer_id):

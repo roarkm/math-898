@@ -28,6 +28,9 @@ class Certify():
     def __init__(self, f=None):
         self.f = f
         self.name = 'Certify'
+        self.solver = cp.CVXOPT
+        # self.solver = cp.SCS
+        self.max_iters = 10**10
         if f:
             self.nn_weights, self.nn_bias_vecs = f.get_weights()
         logging.basicConfig(format='Certify-%(levelname)s:\n%(message)s',
@@ -151,18 +154,18 @@ class Certify():
     def assert_valid_ref_point(self, x):
         fx = self.f.forward(torch.tensor(x).T.float()).detach().numpy().T
         sorted_img = np.sort(fx)
-        assert sorted_img[0] != sorted_img[1], \
+        assert sorted_img[-1] != sorted_img[-2], \
                f"Ambiguous reference input: {x} |--> {fx.T}"
 
-    def _build_eps_robustness_prob(self, x=[[9], [0]], eps=1, verbose=False):
+    def _build_eps_robustness_problem(self, x=[[9], [0]], eps=1, verbose=False):
         self.assert_valid_ref_point(x)
         self.network_constraints(x=x, eps=eps, verbose=verbose)
         self.prob = cp.Problem(cp.Minimize(1), self.constraints)
 
     def _decide_eps_robustness(self, verbose=False, max_iters=10**6):
         self.prob.solve(verbose=verbose,
-                        max_iters=max_iters,
-                        solver=cp.CVXOPT)
+                        max_iters=self.max_iters,
+                        solver=self.solver)
         status = self.prob.status
 
         if (status == cp.OPTIMAL_INACCURATE) or \
@@ -185,7 +188,7 @@ class Certify():
 
     def decide_eps_robustness(self, x=[[9], [0]], eps=1,
                               verbose=False, max_iters=10**6):
-        self._build_eps_robustness_prob(x, eps, verbose)
+        self._build_eps_robustness_problem(x, eps, verbose)
         return self._decide_eps_robustness(verbose, max_iters)
 
     def compute_robustness(self, x, verbose=False):

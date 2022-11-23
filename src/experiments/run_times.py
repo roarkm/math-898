@@ -1,11 +1,13 @@
 from src.models.multi_layer import MultiLayerNN, identity_map
 from src.algorithms.ilp import IteratedLinearVerifier as ILP
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-import cvxpy as cp
-import torch
-import numpy as np
-import math
+from src.algorithms.certify import Certify
+from src.algorithms.mip import MIPVerifier
+# import matplotlib.pyplot as plt
+# from matplotlib.colors import ListedColormap
+# import cvxpy as cp
+# import torch
+# import numpy as np
+# import math
 import csv
 import hashlib
 import time
@@ -16,35 +18,46 @@ def experiment_hash(layer_widths, max_iters, solver):
     return hashlib.sha1(str(data).encode('utf-8')).hexdigest()
 
 
+def _experiment_string(algo_name, alg_type, layer_widths, max_iters, solver):
+    return f"{algo_name}_{alg_type}_{solver}_{len(layer_widths)}"
+
+
 def log_file_name(algo_name, alg_type, layer_widths, max_iters, solver):
-    return f"{algo_name}_{alg_type}_{experiment_hash(layer_widths, max_iters, solver)}_log.csv"
+    s = _experiment_string(algo_name, alg_type, layer_widths, max_iters, solver)
+    return f"{s}_log.csv"
 
 
 def meta_file_name(algo_name, alg_type, layer_widths, max_iters, solver):
-    return f"{algo_name}_{alg_type}_{experiment_hash(layer_widths, max_iters, solver)}_meta.csv"
+    s = _experiment_string(algo_name, alg_type, layer_widths, max_iters, solver)
+    return f"{s}_meta.csv"
 
 
-def random_x():
-    return [[1], [1.001]]
+def random_x(width):
+    x = []
+    for _ in range(width-1):
+        x.append([2])
+    x.append([9])
+    return x
 
 
 def run_exp(VAlg, num_runs, alg_type):
-    f = identity_map(2, 2)
+    x_dim = 2
+    f = identity_map(x_dim, 3)
     alg = VAlg(f)
 
     meta_fieldnames = {
         'alg_name': alg.name,
-        'max_iters': alg.max_iters,
-        'solver': alg.solver,
         'exp_type': alg_type,
-        'layer_widths': '_'.join([str(d) for d in f.weight_dims()]),
-        'depth': len(f.weight_dims())
+        'solver': alg.solver,
+        'depth': len(f.weight_dims()),
+        'layer_widths': '-'.join([str(d) for d in f.weight_dims()]),
+        'max_iters': alg.max_iters,
     }
     meta_file = meta_file_name(alg.name, alg_type,
                                f.weight_dims(), alg.max_iters, alg.solver)
     exp_dir = "experiment_logs"
-    with open(f"{exp_dir}/{meta_file}",
-              'w', encoding='UTF8', newline='') as meta_f:
+    with open(f"{exp_dir}/{meta_file}", 'w',
+              encoding='UTF8', newline='') as meta_f:
         writer = csv.DictWriter(meta_f, fieldnames=meta_fieldnames.keys())
         writer.writeheader()
         writer.writerow(meta_fieldnames)
@@ -62,13 +75,13 @@ def run_exp(VAlg, num_runs, alg_type):
     ]
     del alg
 
-    with open(f"{exp_dir}/{log_file}",
-              'w', encoding='UTF8', newline='') as log_f:
+    with open(f"{exp_dir}/{log_file}", 'w',
+              encoding='UTF8', newline='') as log_f:
         writer = csv.DictWriter(log_f, fieldnames=exp_features)
         writer.writeheader()
         for i in range(num_runs):
             alg = VAlg(f)
-            x = random_x()
+            x = random_x(x_dim)
             eps = 0.1
 
             build_start = time.time()
@@ -77,7 +90,7 @@ def run_exp(VAlg, num_runs, alg_type):
             bt = build_end - build_start
 
             solve_start = time.time()
-            alg._decide_eps_robustness()
+            res = alg._decide_eps_robustness()
             solve_end = time.time()
             st = solve_end - solve_start
 
@@ -88,8 +101,10 @@ def run_exp(VAlg, num_runs, alg_type):
                 'solve_time': st,
                 'warnings': 'NA',
                 'errors': 'NA',
-                'result': True,
+                'result': res,
             }
+            print(f"{alg.name} - solved {i}")
+            print(result)
             writer.writerow(result)
 
             del alg
@@ -97,4 +112,7 @@ def run_exp(VAlg, num_runs, alg_type):
 
 
 if __name__ == '__main__':
-    run_exp(ILP, num_runs=100, alg_type='ER')
+    n=100
+    run_exp(ILP, num_runs=n, alg_type='ER')
+    run_exp(MIPVerifier, num_runs=n, alg_type='ER')
+    run_exp(Certify, num_runs=n, alg_type='ER')
