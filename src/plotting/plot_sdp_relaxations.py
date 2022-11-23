@@ -5,10 +5,12 @@ from src.algorithms.abstract_verifier import (constraints_for_separating_hyperpl
                                               constraints_for_inf_ball)
 
 # from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import cvxpy as cp
 import numpy as np
 import math
+
 
 def plot_half_space(c=[[-1], [1]], d=0, resolution=0.05,
                     relaxation_matrix=None, values={'set':1, 'not_set':0}):
@@ -137,8 +139,64 @@ def plot_relu(resolution=0.01):
     plt.show()
 
 
+def constraints_for_polytope():
+    # custom polytope
+    A = np.array([
+        [2,  1],
+        [-1, 0],
+        [0, -1]
+    ])
+    b = np.array([
+        [1, 2, 2]
+    ])
+    _x = cp.Variable((2, 1))
+    return [A @ _x <= b], _x
+
+
+def plot_constrained_region(constraints, free_vars,
+                            values={'set':1, 'not_set':0},
+                            colors={'bkgrnd':  (0.0, 0.0, 0.0, 0.0),
+                                    'set':     (0.0, 0.0, 1.0, 1.0),
+                                    'not_set': (0.0, 0.0, 0.0, 0.0)},
+                            resolution=0.05,
+                            plot_boundaries={'t':10, 'r':10, 'b':-10, 'l':-10},
+                            plot_scale=1):
+    # plot the region satisfying constraints
+    # plot the image under relu of the region satisfying constraints
+    _x1 = np.arange(plot_boundaries['l']*plot_scale,
+                    plot_boundaries['r']*plot_scale,
+                    resolution)
+    _x2 = np.arange(plot_boundaries['b']*plot_scale,
+                    plot_boundaries['t']*plot_scale,
+                    resolution)
+    x1, x2  = np.meshgrid(_x1, _x2)
+    extent = np.min(x1), np.max(x1), np.min(x2), np.max(x2)
+
+    fig, ax = plt.subplots()
+    ax.axis('equal')
+    # plt.axhline(linestyle='--')
+    # plt.axvline(linestyle='--')
+    plt.xlabel('x1')
+    plt.ylabel('x2')
+
+    pre_img = make_set_indicator(constraints, free_vars, values=values)
+    z = pre_img(x1, x2)
+    cmap = ListedColormap([colors['not_set'], colors['set']])
+    plt.imshow(z, interpolation='none',
+               extent=extent, origin='lower', cmap=cmap)
+
+    # max_x1, max_x2 = max_in_region(constr, free_vars, x1, x2)
+    # relu_img = make_relu_img_indicator(constr, free_vars, max_x1, max_x2, values=values)
+    # img_z = relu_img(x1, x2)
+    # cmap = ListedColormap([colors['not_img'], colors['img']])
+    # plt.imshow(img_z, interpolation='none',
+               # extent=extent, origin='lower', cmap=cmap)
+    plt.show()
+
 
 if __name__ == '__main__':
+    pt, fvars = constraints_for_polytope()
+    plot_constrained_region(pt, fvars)
     # plot_relu()
     # exit()
     # center = np.array([[1], [1]])
@@ -150,8 +208,8 @@ if __name__ == '__main__':
     # plot_inf_ball(center, eps, resolution=0.08, relaxation_matrix=P.value)
     # exit()
 
-    c = np.array([[-1], [1]])
-    d = 0
-    S = _relaxation_for_half_space(c,d,2)
-    S = S[np.ix_([2,3,4], [2,3,4])] # get submatrix corresponding to output of nn
-    plot_half_space(c, d, relaxation_matrix=S) # relaxation is tight so not visible
+    # c = np.array([[-1], [1]])
+    # d = 0
+    # S = _relaxation_for_half_space(c,d,2)
+    # S = S[np.ix_([2,3,4], [2,3,4])] get submatrix corresponding to output of nn
+    # plot_half_space(c, d, relaxation_matrix=S) relaxation is tight so not visible

@@ -1,4 +1,6 @@
-from src.models.multi_layer import MultiLayerNN, identity_map
+from src.models.multi_layer import (MultiLayerNN,
+                                    identity_map,
+                                    custom_net)
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import cvxpy as cp
@@ -7,7 +9,7 @@ import numpy as np
 import math
 
 
-def plot_nn(f, resolution=0.1, x_range=[-10,10], y_range=[-10,10]):
+def plot_nn(f, resolution=0.1, x_range=[-1,14], y_range=[-1,10]):
     _x1 = np.arange(x_range[0], x_range[1], resolution)
     _x2 = np.arange(y_range[0], y_range[1], resolution)
     x1, x2  = np.meshgrid(_x1, _x2)
@@ -48,20 +50,20 @@ def rotation_mat(angle):
 
 def custom_net():
     weights = [ ]
-    weights.append(rotation_mat(0.7))
-    weights.append(rotation_mat(-0.4))
-    weights.append(rotation_mat(-0.9))
-    weights.append(rotation_mat(0.2))
-    # weights.append([[0.3,0],
-                    # [0,0.3]])
+    weights.append(rotation_mat(0.35))
+    weights.append(rotation_mat(-0.25))
+    # weights.append(rotation_mat(-0.9))
+    # weights.append(rotation_mat(0.2))
+    # # weights.append([[0.3,0],
+                    # # [0,0.3]])
     bias_vecs =[
         [-3,-1],
-        [-3,-1],
-        [-3,-1],
-        [2,1],
+        [-5,-1],
+        # [-3,-1],
+        # [-1,-1],
         # [0, -2]
     ]
-    # print(weights)
+    print(weights)
     # exit()
     return MultiLayerNN(weights, bias_vecs)
 

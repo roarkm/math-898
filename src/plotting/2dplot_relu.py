@@ -5,7 +5,7 @@ from src.algorithms.certify import (Certify,
                                     _relaxation_for_half_space)
 from matplotlib.patches import Ellipse
 from src.algorithms.abstract_verifier import (constraints_for_separating_hyperplane,
-                                              str_constraints,
+                                              # str_constraints,
                                               constraints_for_inf_ball)
 
 # from mpl_toolkits.mplot3d import Axes3D
@@ -186,7 +186,7 @@ if __name__ == '__main__':
     center = np.array([[2], [1]])
     eps = 1
     constr, free_vars = constraints_for_polytope()
-    logging.info(str_constraints(constr))
+    # logging.info(str_constraints(constr))
     plot_relu_for_constrained_region(constr, free_vars,
                                      plot_boundaries={'t':3.5, 'r':1, 'b':-2, 'l':-1},
                                      plot_scale=1, resolution=0.02)

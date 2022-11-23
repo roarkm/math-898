@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import numpy as np
@@ -112,6 +113,25 @@ def null_map(in_dim, out_dim, nlayers = 3):
             bias_vecs.append(np.zeros((out_dim, 1)))
     f = MultiLayerNN(weights, bias_vecs, name='Null Map')
     return f
+
+
+def rotation_mat(angle):
+    # rotates by angle radians in clockwise direction
+    R = [[math.cos(angle), -math.sin(angle)],
+         [math.sin(angle), math.cos(angle)]]
+    return R
+
+
+def custom_net():
+    weights = [ ]
+    weights.append(rotation_mat(0.35))
+    weights.append(rotation_mat(-0.25))
+    bias_vecs =[
+        [-3,-1],
+        [-5,-1],
+    ]
+    # print(weights)
+    return MultiLayerNN(weights, bias_vecs)
 
 
 if __name__ == '__main__':
