@@ -69,6 +69,10 @@ class MultiLayerNN(nn.Module):
                 assert isinstance(l, nn.modules.activation.ReLU)
         return weights, bias_vecs
 
+    def weight_dims(self):
+        _, bias_vecs = self.get_weights()
+        return [bv.shape[0] for bv in bias_vecs]
+
     def class_for_input(self, x):
         fx = self.forward(torch.tensor(x).T.float()).detach().numpy()
         _class_order = np.argsort(fx)[0]
@@ -144,3 +148,4 @@ if __name__ == '__main__':
         [3,3],
     ]
     f = MultiLayerNN(weights, bias_vecs)
+    print(f.weight_dims())

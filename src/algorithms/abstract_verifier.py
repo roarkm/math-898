@@ -10,6 +10,7 @@ class AbstractVerifier():
     def __init__(self, f=None):
         self.f = f
         self.name = 'AbstractVerifier'
+        self.max_iters = 10**10
         self._constraints = {}
         self._free_vars = []
         self.counter_example = None
@@ -127,9 +128,9 @@ class AbstractVerifier():
         obj = cp.Minimize(1)
         self.prob = cp.Problem(obj, self.get_constraints())
 
-    def _decide_eps_robustness(self, verbose):
+    def _decide_eps_robustness(self, verbose=False):
         self.prob.solve(verbose=verbose,
-                        max_iters=10**10,
+                        max_iters=self.max_iters,
                         solver=self.solver)
         status = self.prob.status
 
@@ -166,7 +167,7 @@ class AbstractVerifier():
 
     def _compute_robustness(self, verbose=False):
         self.prob.solve(verbose=verbose,
-                        max_iters=10**10,
+                        max_iters=self.max_iters,
                         solver=self.solver)
         status = self.prob.status
 

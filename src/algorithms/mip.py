@@ -19,6 +19,7 @@ class MIPVerifier(AbstractVerifier):
         # self.solver = cp.ECOS_BB # has bugs
         self.solver = cp.GLPK_MI
         self.M = M
+        self.params = {'M': self.M}
         logging.basicConfig(format='MIP-%(levelname)s:\n%(message)s',
                             level=logging.INFO)
         self.prob = None
