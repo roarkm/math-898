@@ -199,7 +199,7 @@ def build_M_out(S, weights, bias_vecs):
     # S is specified by caller and quadratically overapproximates
     # the safety set in the graph of f.
     # There are no free variables in the returned matrix.
-    E0 = _build_E(weights[:-1], 0)
+    E0 = _build_E(weights, 0)
     El = _build_E(weights, len(weights)-1)
     assert E0.shape[1] == El.shape[1]
     _out_ = np.block([
@@ -214,7 +214,7 @@ def build_M_in(P, weights, bias_vecs):
     # P is specified by the caller and quadratically overapproximates
     # the region of interest in the input space of f (typically a hypercube)
     assert(P.shape[0] == weights[0].shape[1] + 1)
-    E0 = _build_E(weights[:-1], 0)
+    E0 = _build_E(weights, 0)
     _in_ = cp.bmat([
         [E0,                         np.zeros((E0.shape[0], 1))],
         [np.zeros((1, E0.shape[1])),                  np.eye(1)],
@@ -350,27 +350,6 @@ def _relaxation_for_half_space(c, d, dim_x):
 
 
 def quick_test_eps_robustness():
-    # b = [
-        # np.array([[1],
-                  # [1]]),
-        # np.array([[2],
-                  # [2],
-                  # [2]]),
-        # np.array([[3],
-                  # [3]]),
-    # ]
-    # weights = [
-        # np.array([[1, 1, 1],
-                  # [1, 1, 1]]),
-        # np.array([[2, 2],
-                  # [2, 2],
-                  # [2, 2]]),
-        # np.array([[3, 3, 3],
-                  # [3, 3, 3]]),
-    # ]
-    # f = MultiLayerNN(weights, b)
-    # x = [[5], [1], [1]]
-
     f = identity_map(2, 2)
     x = [[9], [1]]
     cert = Certify(f)
