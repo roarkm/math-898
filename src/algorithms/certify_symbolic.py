@@ -10,17 +10,17 @@ def _build_E(weights, i):
     assert (i == len(weights)-1) or (i == 0)
     _E = []
     if i == 0:
-        _E.append(np.eye(weights[i].shape[1]))
-        _E.append(np.zeros((weights[i].shape[1],
-                            sum([w.shape[0] for w in weights]))))
+        _E.append(np.eye(weights[0].shape[1]))
+        _E.append(np.zeros((weights[0].shape[1],
+                            sum([w.shape[1] for w in weights[1:]]))))
         E = np.array(np.block([_E]))
-        return E
     if i == len(weights)-1:
         _E.append(np.zeros((weights[-1].shape[1],
                             sum([w.shape[1] for w in weights[:-1]]))))
         _E.append(np.eye(weights[-1].shape[1]))
         E = np.array(np.block([_E]))
-        return E
+    assert E.shape[1] == sum([w.shape[1] for w in weights])
+    return E
 
 def symbolic_build_M_out(S, weights, bias_vecs):
     # S is specified by caller and quadratically overapproximates
@@ -235,7 +235,7 @@ if __name__ == '__main__':
          # + sum([w.shape[1] for w in weights[-1:]]))
     print(_build_E(weights,0).shape)
     print(_build_E(weights,2).shape)
-    exit()
+    # exit()
 
     dim = sum([w.shape[0] for w in weights[:-1]])
     # print(dim)

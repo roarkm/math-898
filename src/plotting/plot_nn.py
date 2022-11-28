@@ -1,72 +1,49 @@
 from src.models.multi_layer import (MultiLayerNN,
                                     identity_map,
                                     custom_net)
+from src.algorithms.abstract_verifier import constraints_for_inf_ball
+from src.algorithms.certify import _relaxation_for_hypercube
+from src.plotting.common import *
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+import matplotlib.patches as mpatches
 import cvxpy as cp
-import torch
 import numpy as np
 import math
 
 
-def plot_nn(f, resolution=0.1, x_range=[-1,14], y_range=[-1,10]):
+def plot_nn(f, resolution=0.1, x_range=[-1,10], y_range=[-1,6], x=None, eps=None):
     _x1 = np.arange(x_range[0], x_range[1], resolution)
     _x2 = np.arange(y_range[0], y_range[1], resolution)
     x1, x2  = np.meshgrid(_x1, _x2)
-
-    f_map = make_nn_indicator(f)
-    z = f_map(x1, x2)
-
-    extent = np.min(x1), np.max(x1), np.min(x2), np.max(x2)
+    pad = 2
+    extent = np.min(x1)-pad, np.max(x1)+pad, np.min(x2)-pad, np.max(x2)+pad
     fig, ax = plt.subplots()
     ax.axis('equal')
-    # plt.axhline(linestyle='--')
-    # plt.axvline(linestyle='--')
-    plt.xlabel('x1')
-    plt.ylabel('x2')
+    plt.xlabel('$x_1$')
+    plt.ylabel('$x_2$')
     plt.grid(True)
-
     plt.axhline()
     plt.axvline()
 
-    cmap = ListedColormap([(0.0,1.0,0.0,0.5), (0.0,0.0,1.0,0.5)])
-    plt.imshow(z, interpolation='none',
-               extent=extent, origin='lower', cmap=cmap)
+    add_class_regions(f, x1, x2, extent)
+
+    # np.random.seed(2)
+    # np.random.seed(179)
+    # np.random.seed(179)
+    # g_vals = 100 * np.random.random_sample(_x.shape[0])
+    _x = np.array([[x[0][0]], [x[1][0]]])
+    g_vals = np.array([9, 2])
+    # g_vals = np.array([2, 9])
+    P, _, _ = _relaxation_for_hypercube(_x, eps, values=g_vals)
+
+    add_relaxation(P.value, x1, x2, extent)
+
+    if x is not None:
+        add_inf_ball(x[0][0], x[1][0], eps, ax)
     plt.show()
 
-def make_nn_indicator(f, values=[0, 1]):
-    # 2d only
-    def indicator(x1, x2):
-        im_x = f(torch.tensor([[x1], [x2]]).T.float()).detach().numpy()
-        _class = np.argmax(im_x)
-        return values[_class]
-    return np.vectorize(indicator)
-
-def rotation_mat(angle):
-    # rotates by angle radians in clockwise direction
-    R = [[math.cos(angle), -math.sin(angle)],
-         [math.sin(angle), math.cos(angle)]]
-    return R
-
-def custom_net():
-    weights = [ ]
-    weights.append(rotation_mat(0.35))
-    weights.append(rotation_mat(-0.25))
-    # weights.append(rotation_mat(-0.9))
-    # weights.append(rotation_mat(0.2))
-    # # weights.append([[0.3,0],
-                    # # [0,0.3]])
-    bias_vecs =[
-        [-3,-1],
-        [-5,-1],
-        # [-3,-1],
-        # [-1,-1],
-        # [0, -2]
-    ]
-    print(weights)
-    # exit()
-    return MultiLayerNN(weights, bias_vecs)
 
 if __name__ == '__main__':
     f = custom_net()
-    plot_nn(f)
+    plot_nn(f, x=[[4], [2]], eps=1, resolution=0.1)
