@@ -28,10 +28,11 @@ class AbstractVerifier():
             s += f"\t{len(self.nn_weights)} layers"
         return s
 
-    def str_constraints(self, layer_id=None, constr_type=None, alg_type=None):
-        constrs = self.get_constraints(layer_id=layer_id,
-                                       constr_type=constr_type,
-                                       alg_type=alg_type)
+    def str_constraints(self, layer_id=None, constr_type=None, alg_type=None, constrs=None):
+        if constrs is None:
+            constrs = self.get_constraints(layer_id=layer_id,
+                                           constr_type=constr_type,
+                                           alg_type=alg_type)
         if len(constrs) == 0:
             return "NO CONSTRAINTS"
         s = "CONSTRAINTS\n"

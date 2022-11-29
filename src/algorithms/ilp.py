@@ -7,6 +7,7 @@ from src.models.multi_layer import (MultiLayerNN,
                                     custom_net,
                                     identity_map)
 from src.algorithms.abstract_verifier import (AbstractVerifier,
+                                              constraints_for_inf_ball,
                                               constraints_for_separating_hyperplane)
 
 class IteratedLinearVerifier(AbstractVerifier):
@@ -76,6 +77,75 @@ class IteratedLinearVerifier(AbstractVerifier):
         assert np.array_equal(_im_x.astype('float32'), fx.T.astype('float32'))
         return self.get_constraints()
 
+    def decide_eps_robustness_iterated(self, x, eps, verbose=False):
+        self.assert_valid_ref_point(x)
+
+        if self.get_constraints() == []:
+            self.network_constraints(x, verbose=verbose)
+            c, fv = constraints_for_inf_ball(x, eps,
+                                             free_vars=self.free_vars('z0'))
+            self.add_constraint(c, 0, 'input', self.name)
+            self.safety_set_constraints(x, verbose=verbose)
+
+        cur_constraints = []
+        cur_constraints += self.get_constraints(constr_type='affine')
+        cur_constraints += self.get_constraints(constr_type='input')
+        cur_constraints += self.get_constraints(constr_type='output')
+
+        obj = cp.Minimize(1)
+        iters = 0
+        total_constraints = len(self.get_constraints())
+        while len(cur_constraints) <= total_constraints:
+            iters = iters + 1
+            print(f"ILP iteration: {iters}, cur_constraints: {len(cur_constraints)} out of {len(self.get_constraints())}")
+            # self.prob = cp.Problem(obj, self.get_constraints())
+            self.prob = cp.Problem(obj, cur_constraints)
+            self.prob.solve(verbose=verbose,
+                            max_iters=self.max_iters,
+                            solver=self.solver)
+            status = self.prob.status
+
+            if (status == cp.OPTIMAL_INACCURATE) or \
+               (status == cp.INFEASIBLE_INACCURATE) or \
+               (status == cp.UNBOUNDED_INACCURATE):
+                logging.warning("Warning: inaccurate solution.")
+
+            if (status == cp.INFEASIBLE) or \
+               (status == cp.INFEASIBLE_INACCURATE):
+                return True
+            elif (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
+                if len(cur_constraints) == total_constraints:
+                    # exhausted all constraints
+                    self.counter_example = self.free_vars('z0').value
+                    # print(f"CE: {self.counter_example}")
+                    # self.verify_counter_example(x, self.counter_example)
+                    return False
+
+                # more consraints to add
+                for c in self.get_constraints(constr_type='relu_2'):
+                    expr = cp.transforms.indicator([c])
+                    if expr.value != 0:
+                        # constraint violated
+                        # print(f"{c} violated by")
+                        # print(self.str_opt_soln())
+                        if c not in cur_constraints:
+                            # print("Adding Constraint")
+                            # print(c)
+                            cur_constraints += [c]
+                for c in self.get_constraints(constr_type='relu_1'):
+                    expr = cp.transforms.indicator([c])
+                    if expr.value != 0:
+                        # print(f"{c} violated")
+                        # print(self.str_opt_soln())
+                        if c not in cur_constraints:
+                            # print("Adding Constraint")
+                            # print(c)
+                            cur_constraints += [c]
+                del self.prob
+                # print(self.str_constraints(constrs=cur_constraints))
+            else:
+                raise Exception(status)
+
 
 
 def quick_test_eps_robustness():
@@ -104,10 +174,27 @@ def quick_test_pointwise_robustness():
     print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
     print(f"Nearest adversarial example is \n{ilp.counter_example}.")
 
+
 def custom_net_trace():
     print('do it')
 
+
+def iterated_trace():
+    f = identity_map(2,2)
+    ilp = IteratedLinearVerifier(f)
+    eps = 2
+    x = [[9], [1.1]]
+    e_robust = ilp.decide_eps_robustness_iterated(x, eps, verbose=False)
+    x_class = f.class_for_input(x)
+    print(f"f({x}) = class {x_class+1}")
+    print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
+    exit()
+    if not e_robust:
+        print(ilp.str_opt_soln('z0'))
+        ce = ilp.counter_example
+        print(f"Counterexample: f({ce}) = class {f.class_for_input(ce)+1}")
+
 if __name__ == '__main__':
-    custom_net_trace()
+    iterated_trace()
     # quick_test_eps_robustness()
     # quick_test_pointwise_robustness()
