@@ -124,16 +124,16 @@ def symbolic_relaxation_for_relu(dim):
     T, Q_vars = symbolic_build_T(dim)
     # using full generallity in case I want to extend to other activations
     alpha, beta = 0, 1
-    lambdas = [sp.symbols(f"lambda{i}") for i in range(0, dim)]
+    zetas = [sp.symbols(f"zeta{i}") for i in range(0, dim)]
     nus = sp.Matrix([[sp.symbols(f"nu{i}")] for i in range(0, dim)])
     etas = sp.Matrix([[sp.symbols(f"eta{i}")] for i in range(0, dim)])
 
     # keep track of free sympy variables
     Q_vars = Q_vars + [nu for nu in nus]
-    Q_vars = Q_vars + lambdas
+    Q_vars = Q_vars + zetas
     Q_vars = Q_vars + [nu for nu in nus]
 
-    diag_lambda = sp.diag(*lambdas)
+    diag_lambda = sp.diag(*zetas)
 
     Q11 = -2 * alpha * beta * (diag_lambda + T)
     Q12 = (alpha + beta) * (diag_lambda + T)

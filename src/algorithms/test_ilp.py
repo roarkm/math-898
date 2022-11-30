@@ -19,6 +19,17 @@ class TestIteratedLinearVerifier(unittest.TestCase):
             identity_test_pw_rob(self, IteratedLinearVerifier, nn_depth=2,
                                  x=t['x'], expected_eps=t['expected_eps'])
 
+    # def test_iterated_eps_robustness(self):
+        # for t in ER_TEST_CASES:
+            # identity_test_eps_rob(self, IteratedLinearVerifier, nn_depth=2,
+                                  # x=t['x'], eps=t['eps'],
+                                  # expect_robustness=t['expect'])
+
+    # def test_iterated_pw_robustness(self):
+        # for t in PW_TEST_CASES:
+            # identity_test_pw_rob(self, IteratedLinearVerifier, nn_depth=2,
+                                 # x=t['x'], expected_eps=t['expected_eps'])
+
 
 if __name__ == '__main__':
     unittest.main()
