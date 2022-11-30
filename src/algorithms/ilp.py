@@ -89,6 +89,7 @@ class IteratedLinearVerifier(AbstractVerifier):
 
         cur_constraints = []
         cur_constraints += self.get_constraints(constr_type='affine')
+        cur_constraints += self.get_constraints(constr_type='relu_1')
         cur_constraints += self.get_constraints(constr_type='input')
         cur_constraints += self.get_constraints(constr_type='output')
 
@@ -127,15 +128,6 @@ class IteratedLinearVerifier(AbstractVerifier):
                     if expr.value != 0:
                         # constraint violated
                         # print(f"{c} violated by")
-                        # print(self.str_opt_soln())
-                        if c not in cur_constraints:
-                            # print("Adding Constraint")
-                            # print(c)
-                            cur_constraints += [c]
-                for c in self.get_constraints(constr_type='relu_1'):
-                    expr = cp.transforms.indicator([c])
-                    if expr.value != 0:
-                        # print(f"{c} violated")
                         # print(self.str_opt_soln())
                         if c not in cur_constraints:
                             # print("Adding Constraint")
