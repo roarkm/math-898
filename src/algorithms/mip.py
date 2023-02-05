@@ -4,11 +4,11 @@ import torch
 import torch.nn as nn
 import cvxpy as cp
 from src.models.multi_layer import (MultiLayerNN,
+                                    custom_net,
                                     identity_map)
 from src.algorithms.abstract_verifier import (AbstractVerifier,
                                               constraints_for_separating_hyperplane)
 
-# TODO: log the branch and bound nodes that the optimizer builds for the MIP
 
 
 class MIPVerifier(AbstractVerifier):
@@ -71,6 +71,7 @@ class MIPVerifier(AbstractVerifier):
                             constr_type='relu_4',
                             alg_type='mip')
 
+
     def network_constraints(self, _=None, verbose=False):
         assert self.f is not None, "No NN provided."
 
@@ -92,12 +93,13 @@ class MIPVerifier(AbstractVerifier):
         return self.get_constraints()
 
 
+
 def quick_test_eps_robustness():
-    f = identity_map(2, 2)
+    f = custom_net()
     mip = MIPVerifier(f)
-    eps = 1
+    eps = 0.5
     # x = [[4], [4.01]]
-    x = [[9], [1]]
+    x = [[1], [1]]
     e_robust = mip.decide_eps_robustness(x, eps)
 
     # print(mip.str_constraints())
@@ -112,17 +114,21 @@ def quick_test_eps_robustness():
 
 
 def quick_test_pointwise_robustness():
-    f = identity_map(2, 2)
+    f = custom_net()
     mip = MIPVerifier(f)
-    x = [[2.01], [1]]
-    eps_hat = mip.compute_robustness(x)
+    x = [[1], [1]]
+    mip._build_pw_robustness(x)
+    eps_hat = mip._compute_robustness()
 
     # print(mip.str_constraints())
+
+    # np.set_printoptions(precision=14)
+    # np.set_printoptions(suppress=True)
 
     print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
     print(f"Nearest adversarial example is \n{mip.counter_example}.")
 
 
 if __name__ == '__main__':
-    quick_test_eps_robustness()
-    # quick_test_pointwise_robustness()
+    # quick_test_eps_robustness()
+    quick_test_pointwise_robustness()

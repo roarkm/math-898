@@ -10,12 +10,13 @@ from src.algorithms.abstract_verifier import (AbstractVerifier,
                                               constraints_for_inf_ball,
                                               constraints_for_separating_hyperplane)
 
-class IteratedLinearVerifier(AbstractVerifier):
 
-    def __init__(self, f=None):
-        super(IteratedLinearVerifier, self).__init__(f)
-        self.name = 'ILP'
-        self.solver = cp.SCS
+class LinearVerifier(AbstractVerifier):
+
+    def __init__(self, f):
+        super().__init__(f)
+        self.name = 'LP'
+        self.solver = cp.GLPK_MI
         logging.basicConfig(format='ILP-%(levelname)s:\n%(message)s', level=logging.DEBUG)
         self.prob = None
 
@@ -30,14 +31,18 @@ class IteratedLinearVerifier(AbstractVerifier):
         for j, _im_x_j in enumerate(im_x):
             if _im_x_j[0] > 0:
                 delta[0,j] = 1
+        print(delta)
 
+        # print("delta", layer_id)
+        # print(delta)
         self.add_constraint(
             self.free_vars(f"z{layer_id}") == np.diagflat(delta) @ self.free_vars(f"z{layer_id}_hat"),
-            layer_id=layer_id,
-            constr_type='relu_1',
-            alg_type='ilp')
+                           layer_id=layer_id,
+                           constr_type='relu_1',
+                           alg_type='ilp')
 
         _delta = 2*delta - np.ones((1,len(im_x)))
+        print(_delta)
         self.add_constraint(
                 np.diagflat(_delta) @ self.free_vars(f"z{layer_id}_hat") >= 0,
                 layer_id=layer_id,
@@ -74,10 +79,17 @@ class IteratedLinearVerifier(AbstractVerifier):
             _im_x = np.array(self.relu(torch.tensor(_im_x)))
 
         fx = self.f(torch.tensor(x).T.float()).detach().numpy()
-        assert np.array_equal(_im_x.astype('float32'), fx.T.astype('float32'))
+        assert np.allclose(_im_x.astype('float32'), fx.T.astype('float32'))
         return self.get_constraints()
 
-    def decide_eps_robustness_iterated(self, x, eps, verbose=False):
+
+class IteratedLinearVerifier(LinearVerifier):
+
+    def __init__(self, f):
+        super().__init__(f)
+        self.name = 'ILP'
+
+    def decide_eps_robustness(self, x, eps, verbose=False):
         self.assert_valid_ref_point(x)
 
         if self.get_constraints() == []:
@@ -98,7 +110,7 @@ class IteratedLinearVerifier(AbstractVerifier):
         total_constraints = len(self.get_constraints())
         while len(cur_constraints) <= total_constraints:
             iters = iters + 1
-            print(f"ILP iteration: {iters}, cur_constraints: {len(cur_constraints)} out of {len(self.get_constraints())}")
+            # print(f"ILP iteration: {iters}, cur_constraints: {len(cur_constraints)} out of {len(self.get_constraints())}")
             # self.prob = cp.Problem(obj, self.get_constraints())
             self.prob = cp.Problem(obj, cur_constraints)
             self.prob.solve(verbose=verbose,
@@ -113,6 +125,7 @@ class IteratedLinearVerifier(AbstractVerifier):
 
             if (status == cp.INFEASIBLE) or \
                (status == cp.INFEASIBLE_INACCURATE):
+                print(self.str_constraints(constrs=cur_constraints))
                 return True
             elif (status == cp.OPTIMAL) or (status == cp.OPTIMAL_INACCURATE):
                 if len(cur_constraints) == total_constraints:
@@ -139,7 +152,6 @@ class IteratedLinearVerifier(AbstractVerifier):
                 raise Exception(status)
 
 
-
 def quick_test_eps_robustness():
     f = identity_map(2,2)
     ilp = IteratedLinearVerifier(f)
@@ -159,12 +171,20 @@ def quick_test_eps_robustness():
 
 
 def quick_test_pointwise_robustness():
-    f = identity_map(2,2)
+    np.set_printoptions(precision=3, suppress=True)
+    f = custom_net()
+    x = [[1], [1]]
+    x_class = f.class_for_input(x)
+    im_x = f.list_forward(x)
+    print(f"f({x}) = {im_x} |--> class {x_class+1}")
+    exit()
+
     ilp = IteratedLinearVerifier(f)
-    x = [[2.01], [1]]
     eps_hat = ilp.compute_robustness(x)
     print(f"Pointwise robusntess of {f.name} at {x} is {eps_hat}.")
     print(f"Nearest adversarial example is \n{ilp.counter_example}.")
+    # print(ilp.str_opt_soln())
+    # print(ilp.str_constraints())
 
 
 def custom_net_trace():
@@ -176,7 +196,7 @@ def iterated_trace():
     ilp = IteratedLinearVerifier(f)
     eps = 2
     x = [[9], [1.1]]
-    e_robust = ilp.decide_eps_robustness_iterated(x, eps, verbose=False)
+    e_robust = ilp.decide_eps_robustness(x, eps, verbose=False)
     x_class = f.class_for_input(x)
     print(f"f({x}) = class {x_class+1}")
     print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
@@ -187,6 +207,6 @@ def iterated_trace():
         print(f"Counterexample: f({ce}) = class {f.class_for_input(ce)+1}")
 
 if __name__ == '__main__':
-    iterated_trace()
+    # iterated_trace()
     # quick_test_eps_robustness()
-    # quick_test_pointwise_robustness()
+    quick_test_pointwise_robustness()

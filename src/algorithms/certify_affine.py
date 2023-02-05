@@ -32,8 +32,9 @@ class CertifyAffine():
         self.f = f
         self.name = 'CertifyAffine'
         self.solver = cp.CVXOPT
+        self.counter_example = None
         # self.solver = cp.SCS
-        self.max_iters = 10**10
+        self.max_iters = 10**16
         if f:
             self.nn_weights, self.nn_bias_vecs = f.get_weights()
         # logging.basicConfig(format='Certify-%(levelname)s:\n%(message)s',
@@ -174,7 +175,7 @@ class CertifyAffine():
 
     def _decide_eps_robustness(self, verbose=False, max_iters=10**6):
         self.prob.solve(verbose=verbose,
-                        max_iters=self.max_iters,
+                        max_iter=self.max_iters,
                         solver=self.solver)
         status = self.prob.status
 

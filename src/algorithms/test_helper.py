@@ -88,8 +88,8 @@ def identity_test_eps_rob(tc, VerifAlg, x, eps, nn_depth, expect_robustness):
     f = identity_map(dim, nn_depth)
     verif_alg = VerifAlg(f)
 
-    # r = verif_alg.decide_eps_robustness(x=x, eps=eps)
-    r = verif_alg.decide_eps_robustness_iterated(x=x, eps=eps)
+    r = verif_alg.decide_eps_robustness(x=x, eps=eps)
+    # r = verif_alg.decide_eps_robustness_iterated(x=x, eps=eps)
     try:
         tc.assertEqual(r, expect_robustness)
     except AssertionError:

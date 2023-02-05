@@ -286,8 +286,8 @@ def build_M_out(S, weights, bias_vecs, K):
 
 
 def quick_test_eps_robustness():
-    f = identity_map(2, 2)
-    x = [[9], [1]]
+    f = custom_net()
+    x = [[4], [2]]
     cert = CertifyReLU(f)
     eps = 1
     e_robust = cert.decide_eps_robustness(x, eps, verbose=False)
@@ -295,16 +295,18 @@ def quick_test_eps_robustness():
     x_class = f.class_for_input(x)
     print(f"f({x}) = class {x_class+1}")
     print(f"{f.name} is ({eps})-robust at {x}?  {e_robust}")
+    print("P = ")
+    print(cert.P.value)
 
 
 def symbolic_test():
     f = custom_net()
     cert = CertifyReLU(f)
-    eps = 8
+    eps = 1
     x = [[4], [2]]
     cert.build_symbolic_matrices(x, eps)
 
 
 if __name__ == '__main__':
-    quick_test_eps_robustness()
-    # symbolic_test()
+    # quick_test_eps_robustness()
+    symbolic_test()

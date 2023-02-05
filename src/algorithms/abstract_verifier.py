@@ -101,7 +101,7 @@ class AbstractVerifier():
              == W @ self.free_vars(f"z{layer_id-1}") + b),
             layer_id=layer_id, constr_type='affine', alg_type=self.name)
 
-    def safety_set_constraints(self, x, tol=10**(-6), verbose=False):
+    def safety_set_constraints(self, x, tol=10**(-3), verbose=False):
         # Add constraints for safety set
         # Only consider seperating hyperplane for the predicted class of x
         # and the next highest component
@@ -169,6 +169,7 @@ class AbstractVerifier():
     def _compute_robustness(self, verbose=False):
         self.prob.solve(verbose=verbose,
                         max_iters=self.max_iters,
+                        max_iter=self.max_iters,
                         solver=self.solver)
         status = self.prob.status
 
@@ -196,7 +197,8 @@ class AbstractVerifier():
 
 
 def _vector_for_separating_hyperplane(large_index, small_index,
-                                      n, complement=False):
+                                      n, complement=False,
+                                      tolerance = 10**(-4)):
     # create vector c for a seperating hyperplane
     # {x | c dot x >= 0 and x,c in R^n} = {x | x_large_index > x_small_index }
     c = np.zeros((1, n))

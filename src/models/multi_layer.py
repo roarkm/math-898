@@ -74,6 +74,10 @@ class MultiLayerNN(nn.Module):
         _, bias_vecs = self.get_weights()
         return [bv.shape[0] for bv in bias_vecs]
 
+    def list_forward(self, x):
+        fx = self.forward(torch.tensor(x).T.float()).detach().numpy()
+        return fx
+
     def class_for_input(self, x):
         fx = self.forward(torch.tensor(x).T.float()).detach().numpy()
         _class_order = np.argsort(fx)[0]
@@ -124,17 +128,18 @@ def rotation_mat(angle):
 
 def custom_net():
     weights = [ ]
-    weights.append(rotation_mat(0.35))
-    weights.append(rotation_mat(-0.25))
+    weights.append(rotation_mat(0.1))
+    weights.append(rotation_mat(-0.9))
     bias_vecs =[
-        [-3,-1],
-        [-5,-1],
+        [-1, -1],
+        [-0.8, -0.8],
     ]
-    # print(weights)
     return MultiLayerNN(weights, bias_vecs)
 
 
 if __name__ == '__main__':
+    custom_net()
+    exit()
     f = identity_map(8, 2)
     f = null_map(4, 2)
 
